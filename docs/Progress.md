@@ -42,26 +42,24 @@ Do not mark a checkpoint `Done` unless:
 
 ## Current Resume Point
 
-**Current checkpoint:** `Checkpoint 16 — Full Regression and Cleanup`
+**Current checkpoint:** None (core plan complete) — optional backfill below
 
-**Current status:** `Not Started`
+**Current status:** `Checkpoint 16 Done`
 
-**Overall:** ~80–85% feature code; waitlist flow complete with integration + concurrency tests (43 total)
+**Overall:** Feature-complete scheduling API with 43 integration tests + seed smoke test; README and expanded seed in place
 
 **Next Cursor prompt:**
 
 ```txt
 Read docs/Progress.md first, then docs/CursorPlan.md.
 
-Continue from Checkpoint 16. Add README, expand seed to spec, seed smoke test, and run full regression.
-
-Run npm test and record results in docs/Progress.md.
+Optional backfill: Checkpoint 6–9 tests (slot engine edge cases, core-routes, slots.api, events), Checkpoint 13 list tests, Checkpoint 4 validators.test.js.
 ```
 
 **Priority order if deviating from strict checkpoint sequence:**
 
-1. Checkpoint 16 — README, seed smoke test, full regression
-2. Checkpoint 6–9, 13–14 — backfill remaining API/unit tests
+1. Checkpoint 6–9, 13–14 — backfill remaining API/unit tests
+2. Manual demo checklist in README before stakeholder review
 
 ## Checkpoint Tracker
 
@@ -70,39 +68,50 @@ Run npm test and record results in docs/Progress.md.
 | 0 | Planning Only | Done | Architecture reviewed; appointments vs slotReservations split confirmed intentional. |
 | 1 | Project Scaffold | Done | Express, Vitest, Supertest, Docker Mongo replica set, env, health route. API runs on host (`npm run dev`), not in Compose. |
 | 2 | Shared Infrastructure | Done | Auth (dev headers), tenant, validate, transactions, timezone, ids, slot.utils, errors. |
-| 3 | Mongoose Models and Indexes | In Progress | All 9 models + schema indexes; `scripts/setup-indexes.js`. Tests are schema-only (`index-definitions.test.js`), not live Mongo sync. |
-| 4 | Validators | In Progress | All Zod validators present. No `validators.test.js`. |
-| 5 | Seed Script | In Progress | `scripts/seed.js` runs. Missing vs spec: ~10 appointments (has 1), 2 waitlist entries (has 1). No `seed.test.js`. |
-| 6 | Pure Slot Engine | In Progress | `slot.engine.js` is pure. Only 3 unit tests; missing DST, additional, last-partial-slot, held-expiry cases. |
-| 7 | Core CRUD Routes | In Progress | All clinic/doctor/type/availability routes wired. No `core-routes.test.js`. |
-| 8 | GET /slots | In Progress | `slot.service.js` + controller done. No `slots.api.test.js`. Query requires `clinicId` but handler uses token `clinicId`. |
-| 9 | Event Service | In Progress | `event.service.js` + history endpoint. No `events.test.js`. |
+| 3 | Mongoose Models and Indexes | Done | 9 models + `setup:indexes.js`. `index-definitions.test.js` (7) + `reservation-index.test.js` (3) on live Mongo. |
+| 4 | Validators | Done | Zod validators + `validators.test.js` (slot.utils + HTTP validation). |
+| 5 | Seed Script | Done | `scripts/seed.js` + `runSeed()` export: 2 clinics, 6 doctors, 10 confirmed appointments, 2 waitlist entries. `npm run test:seed` / `tests/zz-seed.test.js`. |
+| 6 | Pure Slot Engine | Done | `slot.engine.test.js` (9): partial slot, override/additional, DST, overlap, past filter. Held expiry covered in `slots.api.test.js`. |
+| 7 | Core CRUD Routes | Done | `core-routes.test.js` (8): clinics, doctors, types, availability, validate. |
+| 8 | GET /slots | Done | `slots.api.test.js` (6); uses `MAX_SLOT_QUERY_DAYS` from env. |
+| 9 | Event Service | Done | `events.test.js` (4): created/confirm/cancel events, history order, cross-clinic 404. |
 | 10 | Booking: POST /appointments | Done | Overlap check before claim; idempotency; lazy expiry; `tests/booking.test.js` + `tests/booking.concurrency.test.js` (20 parallel, Atlas). |
 | 11 | Confirm, Cancel, Reschedule | Done | Optimistic `version` on confirm/cancel; reschedule overlap check; transition + concurrency tests. Cancel triggers waitlist offer (CP15). |
 | 12 | Complete and No-Show | Done | Staff-only `markOutcome` with optimistic version; `tests/appointment-outcomes.test.js` (8 cases). |
-| 13 | Appointment List | In Progress | Cursor pagination (`after` + `limit`). Missing 90-day range cap on `from`/`to`. No list tests. |
-| 14 | Availability Validate | In Progress | Endpoint exists; logic checks weekly template only (ignores exceptions). No tests. |
+| 13 | Appointment List | Done | Cursor pagination + 90-day cap. `appointment-list.test.js` (5). |
+| 14 | Availability Validate | Done | Exceptions-aware conflict detection. Covered in `core-routes.test.js`. |
 | 15 | Waitlist | Done | Cancel → offer; accept creates confirmed appointment in one transaction; expired/superseded queue advance; `tests/waitlist.test.js` (7) + `tests/waitlist.concurrency.test.js` (1). |
-| 16 | Full Regression and Cleanup | Not Started | No README. 43 tests pass. Seed still below spec. No double-booking demo docs. |
+| 16 | Full Regression and Cleanup | Done | `README.md`, expanded seed, `tests/zz-seed.test.js`, 90-day list cap, validate w/ exceptions. `npm test` 43 pass; `npm run test:seed` 1 pass. |
 
 ## Test Summary
 
-Last run: `npm test` — **43 passed** (10 files)
+Last run: `npm test` — **97 passed** (18 files); `npm run test:seed` — **1 passed**
 
 | File | Tests | Type |
 |---|---|---|
 | `tests/health.test.js` | 1 | HTTP (no DB) |
-| `tests/index-definitions.test.js` | 3 | Schema index definitions (no live Mongo) |
-| `tests/slot.engine.test.js` | 3 | Pure unit |
-| `tests/booking.test.js` | 7 | Integration (MongoDB Atlas via `.env`) |
-| `tests/booking.concurrency.test.js` | 1 | Concurrency (20 parallel bookings) |
+| `tests/index-definitions.test.js` | 7 | Schema index definitions |
+| `tests/slot.engine.test.js` | 9 | Pure unit |
+| `tests/validators.test.js` | 8 | slot.utils + HTTP validation |
+| `tests/core-routes.test.js` | 8 | CRUD + availability |
+| `tests/slots.api.test.js` | 6 | GET /slots integration |
+| `tests/events.test.js` | 4 | Audit / history |
+| `tests/multi-tenancy.test.js` | 1 | Cross-clinic isolation |
+| `tests/appointment-list.test.js` | 5 | List + 90-day cap |
+| `tests/reservation-index.test.js` | 3 | Live partial unique index |
+| `tests/booking.test.js` | 7 | Booking integration |
+| `tests/booking.concurrency.test.js` | 1 | 20 parallel bookings |
 | `tests/appointment-transitions.test.js` | 9 | Confirm, cancel, reschedule |
-| `tests/appointment-transitions.concurrency.test.js` | 3 | Concurrent confirm/cancel/reschedule |
+| `tests/appointment-transitions.concurrency.test.js` | 3 | Concurrent transitions |
 | `tests/appointment-outcomes.test.js` | 8 | No-show and complete |
-| `tests/waitlist.test.js` | 7 | Join, offer ordering, accept, expired, superseded |
-| `tests/waitlist.concurrency.test.js` | 1 | Parallel offer → one active offer |
+| `tests/auth.test.js` | 5 | JWT + dev header policy |
+| `tests/waitlist.test.js` | 11 | Waitlist flows + ownership |
+| `tests/waitlist.concurrency.test.js` | 1 | Parallel offers |
+| `tests/zz-seed.test.js` | 1 | Seed smoke (`npm run test:seed`) |
 
-**Not present yet:** `validators.test.js`, `seed.test.js`, `core-routes.test.js`, `slots.api.test.js`, `events.test.js`, multi-tenancy suite.
+**Still optional / not automated:** audit rollback injection test, performance smoke threshold, 100-way parallel booking.
+
+**Auth / waitlist hardening (done):** JWT Bearer tokens (`jsonwebtoken`); dev headers only when `NODE_ENV !== production`; waitlist accept is patient-only; waitlist remove is patient-owned or staff.
 
 **Mongo for integration tests:** Uses `MONGODB_URI` from `.env` (Atlas). Optional local: `docker compose up -d` with `mongodb://localhost:27017/clinic_scheduling?replicaSet=rs0`. Vitest runs DB tests with `fileParallelism: false`.
 
@@ -207,6 +216,36 @@ Completed:
 Tests run: `npm test` — 43 passed.
 
 Next: Checkpoint 16.
+
+### Session 6 — Checkpoint 16
+
+Status: `Done`
+
+Completed:
+
+- `README.md` — setup, architecture, data model, concurrency, tenancy, NoSQL tradeoffs, double-booking demo.
+- Expanded `scripts/seed.js` (`runSeed` export): 10 confirmed appointments, 2 waitlist entries, clears all collections safely.
+- `tests/zz-seed.test.js` (isolated via `npm run test:seed`).
+- 90-day max range on `GET /clinics/:id/appointments` (`from`/`to`).
+- `validateAvailabilityChange` respects block/override exceptions.
+- `npm test` + `npm run test:seed` + `npm run seed` verified.
+
+Tests run: `npm test` — 43 passed; `npm run test:seed` — 1 passed.
+
+### Session 7 — TestingPlan backfill
+
+Status: `Done`
+
+Completed:
+
+- New suites: `validators`, `core-routes`, `slots.api`, `events`, `multi-tenancy`, `appointment-list`, `reservation-index`.
+- Expanded `slot.engine.test.js` and `index-definitions.test.js`.
+- Fixed `tenant` middleware to enforce clinic URL mismatch (parsed from path before route params bind).
+- `getSlots` uses `env.MAX_SLOT_QUERY_DAYS`.
+
+Tests run: `npm test` — 88 passed.
+
+Next: manual demo; optional auth hardening (JWT, waitlist ownership).
 
 ## Files Created Or Changed By Checkpoint
 
@@ -452,11 +491,20 @@ Completion notes: Done. Cancel offers slot via partial unique index on active of
 
 ### Checkpoint 16 — Full Regression and Cleanup
 
-Files: None yet (no README).
+Files:
 
-Tests: Full suite not meeting `docs/TestingPlan.md`.
+```txt
+README.md
+scripts/seed.js
+tests/zz-seed.test.js
+src/controllers/appointment.controller.js
+src/services/availability.service.js
+package.json
+```
 
-Completion notes: Not Started.
+Tests: `npm test` (43), `npm run test:seed` (1).
+
+Completion notes: Done. README includes double-booking demo. Seed matches Task.md counts. No `slots` collection.
 
 ## Route Inventory (implemented)
 

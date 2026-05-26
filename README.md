@@ -79,11 +79,26 @@ Client → Express routes → Controllers → Services → Mongoose models → M
 
 There is **no** pre-materialised slots collection.
 
-## Multi-tenancy
+## Authentication
 
-Every tenant-owned document includes `clinicId`. API handlers resolve the clinic from the auth context and scope queries with it.
+**Production** (`NODE_ENV=production`): send a signed JWT on every protected route:
 
-Development auth uses headers (see `.env.example`):
+```http
+Authorization: Bearer <token>
+```
+
+JWT payload fields:
+
+| Claim | Description |
+|-------|-------------|
+| `sub` | Actor ID (patient or staff user) |
+| `clinicId` | Tenant clinic ID |
+| `role` | `patient`, `clinic_staff`, or `system` |
+| `name` | Display name (optional) |
+
+Sign tokens with `JWT_SECRET` and `JWT_EXPIRES_IN` from `.env`. Tests use `signToken()` from `src/utils/jwt.js`.
+
+**Development / test** (`NODE_ENV` not `production`): dev headers are also accepted when no Bearer token is present:
 
 ```http
 x-clinic-id: clinic_india
@@ -92,7 +107,13 @@ x-actor-role: patient
 x-actor-name: Demo Patient
 ```
 
+## Multi-tenancy
+
+Every tenant-owned document includes `clinicId`. API handlers resolve the clinic from the verified auth context and scope queries with it.
+
 Cross-clinic access (e.g. clinic A token reading clinic B data) returns `403`.
+
+**Waitlist ownership:** only the patient on a waitlist entry can accept an offer; patients cannot remove or accept another patient's entry (`403`). Clinic staff may remove entries on behalf of operations.
 
 ## Concurrency
 
@@ -169,10 +190,12 @@ Expect one `201` and one `409`. Or run `npm test` and inspect `tests/booking.con
 ## Testing
 
 ```bash
-npm test
+npm test          # integration suite (excludes destructive seed smoke test)
+npm run test:seed # clears DB and runs seed; verifies counts and /slots
+npm run test:all  # both
 ```
 
-Integration tests use `MONGODB_URI` from `.env` (Atlas or local). Vitest runs files sequentially (`fileParallelism: false`) to avoid cross-test interference.
+Integration tests use `MONGODB_URI` from `.env` (Atlas or local). Vitest runs with a single worker to avoid cross-test interference.
 
 ## Documentation
 

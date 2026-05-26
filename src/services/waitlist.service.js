@@ -1,10 +1,21 @@
 import { DateTime } from "luxon";
 import { SlotOffer, WaitlistEntry } from "../models/index.js";
-import { BadRequestError, ConflictError, GoneError, NotFoundError } from "../utils/errors.js";
+import { BadRequestError, ConflictError, ForbiddenError, GoneError, NotFoundError } from "../utils/errors.js";
 import { withTransaction } from "../utils/transactions.js";
 import { env } from "../config/env.js";
 import { getSlots } from "./slot.service.js";
 import { createConfirmedAppointment } from "./booking.service.js";
+
+function assertWaitlistPatientOwnership(entry, actor) {
+  if (actor?.role === "clinic_staff" || actor?.role === "system") return;
+  if (actor?.role === "patient" && actor.id === entry.patientId) return;
+  throw new ForbiddenError("You can only manage your own waitlist entry");
+}
+
+function assertWaitlistAcceptOwnership(entry, actor) {
+  if (actor?.role === "patient" && actor.id === entry.patientId) return;
+  throw new ForbiddenError("Only the offered patient can accept this waitlist offer");
+}
 
 function slotContext(entry, offer) {
   return {
@@ -132,6 +143,7 @@ export async function triggerWaitlistOfferAfterCancellation(appointment, clinicT
 export async function acceptOffer(clinicId, waitlistEntryId, actor) {
   const entry = await WaitlistEntry.findOne({ clinicId, _id: waitlistEntryId });
   if (!entry) throw new NotFoundError("Waitlist entry not found");
+  assertWaitlistAcceptOwnership(entry, actor);
   if (entry.status !== "offered") throw new BadRequestError("Waitlist entry is not in offered status");
 
   const offer = await SlotOffer.findOne({ clinicId, waitlistEntryId, status: "offered" });
@@ -179,9 +191,10 @@ export async function listWaitlist(clinicId, doctorId) {
     .lean();
 }
 
-export async function removeWaitlist(clinicId, id) {
+export async function removeWaitlist(clinicId, id, actor) {
   const entry = await WaitlistEntry.findOne({ clinicId, _id: id, status: { $in: ["waiting", "offered"] } });
   if (!entry) throw new NotFoundError("Waitlist entry not found");
+  assertWaitlistPatientOwnership(entry, actor);
 
   const offer = entry.status === "offered"
     ? await SlotOffer.findOne({ clinicId, waitlistEntryId: id, status: "offered" })

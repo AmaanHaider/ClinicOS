@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import { AppointmentType, AvailabilityException, AvailabilityTemplate, Clinic, SlotReservation } from "../models/index.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { parseDate } from "../utils/timezone.js";
+import { env } from "../config/env.js";
 import { computeAvailableSlots } from "./slot.engine.js";
 import { requireDoctor } from "./doctor.service.js";
 
@@ -33,7 +34,9 @@ export async function getSlots(clinicId, { doctorId, appointmentType, from, to }
   const fromDt = parseDate(from);
   const toDt = parseDate(to);
   if (toDt < fromDt) throw new BadRequestError("to must be after from");
-  if (toDt.diff(fromDt, "days").days > 30) throw new BadRequestError("Maximum slot query range is 30 days");
+  if (toDt.diff(fromDt, "days").days > env.MAX_SLOT_QUERY_DAYS) {
+    throw new BadRequestError(`Maximum slot query range is ${env.MAX_SLOT_QUERY_DAYS} days`);
+  }
 
   const doctor = await requireDoctor(clinicId, doctorId);
   if (!doctor.supportedAppointmentTypes.includes(appointmentType)) {

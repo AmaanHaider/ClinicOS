@@ -49,11 +49,11 @@ export async function deleteException(clinicId, doctorId, date) {
   return deleted;
 }
 
-function windowsForDate(date, proposedTemplate, exceptionsByDate) {
+function windowsForDate(date, proposedTemplate, exceptionsByDate, timezone) {
   const exception = exceptionsByDate[date];
   if (exception?.type === "block") return [];
   if (exception?.type === "override") return exception.windows || [];
-  const weekday = DateTime.fromISO(date, { zone: "utc" }).weekday;
+  const weekday = DateTime.fromISO(date, { zone: timezone }).weekday;
   const day = days[weekday - 1];
   return proposedTemplate[day] || [];
 }
@@ -91,7 +91,7 @@ export async function validateAvailabilityChange(clinicId, doctorId, proposedTem
   }).lean();
   const conflicts = appointments.filter((appt) => {
     const date = DateTime.fromJSDate(appt.currentSlotStart, { zone: "utc" }).setZone(clinic.timezone).toISODate();
-    const windows = windowsForDate(date, proposedTemplate, exceptionsByDate);
+    const windows = windowsForDate(date, proposedTemplate, exceptionsByDate, clinic.timezone);
     return !appointmentFitsWindows(appt, windows, clinic.timezone);
   });
   return { conflictCount: conflicts.length, conflicts: conflicts.map((a) => ({ appointmentId: a._id, slotStart: a.currentSlotStart, patientName: a.patient?.name, appointmentType: a.appointmentTypeName })) };

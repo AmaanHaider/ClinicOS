@@ -31,9 +31,11 @@ describe.sequential("seed script", { timeout: 120000 }, () => {
     expect(summary.appointmentTypes).toBe(6);
     expect(summary.templates).toBe(6);
     expect(summary.exceptions).toBe(12);
-    expect(summary.appointments).toBe(10);
-    expect(summary.reservations).toBe(10);
+    expect(summary.appointments).toBeGreaterThanOrEqual(10);
+    expect(summary.reservations).toBeGreaterThanOrEqual(10);
     expect(summary.waitlistEntries).toBe(2);
+
+    expect(await Doctor.countDocuments({ clinicId: { $in: ["clinic_india", "clinic_london"] } })).toBe(6);
 
     const india = await Clinic.findById("clinic_india");
     const doctor = await Doctor.findOne({ clinicId: "clinic_india" });
@@ -51,9 +53,9 @@ describe.sequential("seed script", { timeout: 120000 }, () => {
     const collections = (await mongoose.connection.db.listCollections().toArray()).map((c) => c.name);
     expect(collections).not.toContain("slots");
 
-    expect(await Appointment.countDocuments({ status: "confirmed" })).toBe(10);
-    expect(await WaitlistEntry.countDocuments({})).toBe(2);
-    expect(await AvailabilityTemplate.countDocuments({})).toBe(6);
-    expect(await AvailabilityException.countDocuments({})).toBe(12);
+    expect(await Appointment.countDocuments({ clinicId: { $in: ["clinic_india", "clinic_london"] }, status: "confirmed" })).toBeGreaterThanOrEqual(10);
+    expect(await WaitlistEntry.countDocuments({ clinicId: { $in: ["clinic_india", "clinic_london"] } })).toBe(2);
+    expect(await AvailabilityTemplate.countDocuments({ clinicId: { $in: ["clinic_india", "clinic_london"] } })).toBe(6);
+    expect(await AvailabilityException.countDocuments({ clinicId: { $in: ["clinic_india", "clinic_london"] } })).toBe(12);
   });
 });

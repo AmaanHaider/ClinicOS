@@ -215,4 +215,86 @@ describe.sequential("waitlist", { timeout: 120000 }, () => {
     const offer = await SlotOffer.findOne({ clinicId: fixture.clinic._id, waitlistEntryId: join.body._id });
     expect(offer.status).toBe("superseded");
   });
+
+  it("returns 403 when staff tries to accept on behalf of patient", async () => {
+    fixture = await createBookingFixture({ narrowWindow: true });
+    const slot = await firstAvailableSlot(fixture.clinic._id, fixture.doctor._id, fixture.consult._id, fixture.monday);
+    const blocker = await bookAndConfirm(fixture, slot, "blocker");
+
+    const join = await request(app).post("/waitlist").set(authHeaders(fixture.clinic._id, { actorId: "owner_patient" })).send({
+      doctorId: fixture.doctor._id,
+      appointmentTypeId: fixture.consult._id,
+      targetDate: fixture.monday,
+      patientId: "owner_patient"
+    });
+
+    await request(app)
+      .delete(`/appointments/${blocker._id}`)
+      .set(authHeaders(fixture.clinic._id))
+      .send({ cancelledBy: "patient" });
+
+    const acceptRes = await request(app)
+      .post(`/waitlist/${join.body._id}/accept`)
+      .set(authHeaders(fixture.clinic._id, { role: "clinic_staff", actorId: "staff_1" }));
+    expect(acceptRes.status).toBe(403);
+  });
+
+  it("returns 403 when another patient accepts an offer", async () => {
+    fixture = await createBookingFixture({ narrowWindow: true });
+    const slot = await firstAvailableSlot(fixture.clinic._id, fixture.doctor._id, fixture.consult._id, fixture.monday);
+    const blocker = await bookAndConfirm(fixture, slot, "blocker");
+
+    const join = await request(app).post("/waitlist").set(authHeaders(fixture.clinic._id, { actorId: "owner_patient" })).send({
+      doctorId: fixture.doctor._id,
+      appointmentTypeId: fixture.consult._id,
+      targetDate: fixture.monday,
+      patientId: "owner_patient"
+    });
+
+    await request(app)
+      .delete(`/appointments/${blocker._id}`)
+      .set(authHeaders(fixture.clinic._id))
+      .send({ cancelledBy: "patient" });
+
+    const acceptRes = await request(app)
+      .post(`/waitlist/${join.body._id}/accept`)
+      .set(authHeaders(fixture.clinic._id, { actorId: "other_patient" }));
+    expect(acceptRes.status).toBe(403);
+  });
+
+  it("returns 403 when another patient removes a waitlist entry", async () => {
+    fixture = await createBookingFixture({ narrowWindow: true });
+    const slot = await firstAvailableSlot(fixture.clinic._id, fixture.doctor._id, fixture.consult._id, fixture.monday);
+    await bookAndConfirm(fixture, slot, "blocker");
+
+    const join = await request(app).post("/waitlist").set(authHeaders(fixture.clinic._id, { actorId: "owner_patient" })).send({
+      doctorId: fixture.doctor._id,
+      appointmentTypeId: fixture.consult._id,
+      targetDate: fixture.monday,
+      patientId: "owner_patient"
+    });
+
+    const removeRes = await request(app)
+      .delete(`/waitlist/${join.body._id}`)
+      .set(authHeaders(fixture.clinic._id, { actorId: "other_patient" }));
+    expect(removeRes.status).toBe(403);
+  });
+
+  it("allows staff to remove a patient waitlist entry", async () => {
+    fixture = await createBookingFixture({ narrowWindow: true });
+    const slot = await firstAvailableSlot(fixture.clinic._id, fixture.doctor._id, fixture.consult._id, fixture.monday);
+    await bookAndConfirm(fixture, slot, "blocker");
+
+    const join = await request(app).post("/waitlist").set(authHeaders(fixture.clinic._id, { actorId: "owner_patient" })).send({
+      doctorId: fixture.doctor._id,
+      appointmentTypeId: fixture.consult._id,
+      targetDate: fixture.monday,
+      patientId: "owner_patient"
+    });
+
+    const removeRes = await request(app)
+      .delete(`/waitlist/${join.body._id}`)
+      .set(authHeaders(fixture.clinic._id, { role: "clinic_staff", actorId: "staff_1" }));
+    expect(removeRes.status).toBe(200);
+  });
 });

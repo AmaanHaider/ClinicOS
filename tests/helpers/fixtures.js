@@ -13,6 +13,7 @@ import {
   WaitlistEntry
 } from "../../src/models/index.js";
 import { getSlots } from "../../src/services/slot.service.js";
+import { signToken } from "../../src/utils/jwt.js";
 
 const EMPTY_WEEK = { MON: [], TUE: [], WED: [], THU: [], FRI: [], SAT: [], SUN: [] };
 
@@ -121,11 +122,81 @@ export function authHeaders(clinicId, overrides = {}) {
   };
 }
 
+/** Signed JWT (preferred for production-like tests). */
+export function jwtHeaders(clinicId, overrides = {}) {
+  const token = signToken({
+    sub: overrides.actorId || "test_patient",
+    clinicId,
+    role: overrides.role || "patient",
+    name: overrides.name || "Test Patient"
+  });
+  return { Authorization: `Bearer ${token}` };
+}
+
 export function staffHeaders(clinicId) {
   return authHeaders(clinicId, { role: "clinic_staff", actorId: "staff_test", name: "Staff User" });
 }
 
+export function staffJwtHeaders(clinicId) {
+  return jwtHeaders(clinicId, { role: "clinic_staff", actorId: "staff_test", name: "Staff User" });
+}
+
 /** Book, confirm, then move slot into the past for no-show/complete tests. */
+/** Two isolated clinics for multi-tenancy tests. */
+export async function createTwoClinicFixture() {
+  const clinicA = await Clinic.create({
+    name: `Clinic A ${Date.now()}`,
+    timezone: "Asia/Kolkata",
+    isActive: true
+  });
+  const clinicB = await Clinic.create({
+    name: `Clinic B ${Date.now()}`,
+    timezone: "Europe/London",
+    isActive: true
+  });
+
+  async function seedClinic(clinic) {
+    const consult = await AppointmentType.create({
+      clinicId: clinic._id,
+      name: "Consult",
+      durationMinutes: 15,
+      isActive: true
+    });
+    const doctor = await Doctor.create({
+      clinicId: clinic._id,
+      name: `Dr ${clinic._id}`,
+      supportedAppointmentTypes: [consult._id],
+      isActive: true
+    });
+    const monday = nextMondayDate(clinic.timezone);
+    await AvailabilityTemplate.create({
+      clinicId: clinic._id,
+      doctorId: doctor._id,
+      weeklyTemplate: { ...EMPTY_WEEK, MON: [{ start: "09:00", end: "12:00" }] },
+      isActive: true
+    });
+    return { consult, doctor, monday };
+  }
+
+  const a = await seedClinic(clinicA);
+  const b = await seedClinic(clinicB);
+  return {
+    clinicA,
+    clinicB,
+    doctorA: a.doctor,
+    doctorB: b.doctor,
+    typeA: a.consult,
+    typeB: b.consult,
+    mondayA: a.monday,
+    mondayB: b.monday
+  };
+}
+
+export async function cleanupTwoClinicFixture(clinicAId, clinicBId) {
+  await cleanupFixture(clinicAId);
+  await cleanupFixture(clinicBId);
+}
+
 export async function createPastConfirmedAppointment(expressApp, fixture) {
   const { res: bookRes } = await bookPendingAppointment(expressApp, fixture);
   if (bookRes.status !== 201) throw new Error(`booking failed with status ${bookRes.status}`);

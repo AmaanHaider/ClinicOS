@@ -67,7 +67,8 @@ async function createConfirmedAppointment({ clinicId, clinicTimezone, doctorId, 
     currentSlotEnd: end.toJSDate(),
     status: "confirmed",
     patientId,
-    patient
+    patient,
+    idempotencyKey: `seed-${clinicId}-${doctorId}-${start.toISO()}`
   }]);
   reservation.appointmentId = appointment._id;
   await reservation.save();
@@ -194,15 +195,16 @@ export async function runSeed() {
     }
   ]);
 
+  const clinicIds = clinics.map((c) => c._id);
   return {
     clinics: clinics.length,
-    doctors: (await Doctor.countDocuments({})),
-    appointmentTypes: (await AppointmentType.countDocuments({})),
-    templates: (await AvailabilityTemplate.countDocuments({})),
-    exceptions: (await AvailabilityException.countDocuments({})),
+    doctors: await Doctor.countDocuments({ clinicId: { $in: clinicIds } }),
+    appointmentTypes: await AppointmentType.countDocuments({ clinicId: { $in: clinicIds } }),
+    templates: await AvailabilityTemplate.countDocuments({ clinicId: { $in: clinicIds } }),
+    exceptions: await AvailabilityException.countDocuments({ clinicId: { $in: clinicIds } }),
     appointments: appointments.length,
-    reservations: await SlotReservation.countDocuments({ status: "confirmed" }),
-    waitlistEntries: await WaitlistEntry.countDocuments({})
+    reservations: await SlotReservation.countDocuments({ clinicId: { $in: clinicIds }, status: "confirmed" }),
+    waitlistEntries: await WaitlistEntry.countDocuments({ clinicId: { $in: clinicIds } })
   };
 }
 

@@ -13,6 +13,6 @@ export async function listWaitlist(req, res, next) {
 }
 
 export async function removeWaitlist(req, res, next) {
-  try { res.json(await service.removeWaitlist(req.clinicId, req.validated.params.id)); } catch (err) { next(err); }
+  try { res.json(await service.removeWaitlist(req.clinicId, req.validated.params.id, req.actor)); } catch (err) { next(err); }
 }
 
