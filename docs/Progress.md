@@ -42,18 +42,17 @@ Do not mark a checkpoint `Done` unless:
 
 ## Current Resume Point
 
-**Current checkpoint:** None (core plan complete) — optional backfill below
+**Current checkpoint:** None (core plan complete)
 
-**Current status:** `Checkpoint 16 Done`
+**Current status:** `Done` — API + tests + Swagger + Postman
 
-**Overall:** Feature-complete scheduling API with 43 integration tests + seed smoke test; README and expanded seed in place
+**Overall:** Feature-complete scheduling API; 97 tests; OpenAPI/Swagger; Postman E2E collection
 
 **Next Cursor prompt:**
 
 ```txt
-Read docs/Progress.md first, then docs/CursorPlan.md.
-
-Optional backfill: Checkpoint 6–9 tests (slot engine edge cases, core-routes, slots.api, events), Checkpoint 13 list tests, Checkpoint 4 validators.test.js.
+Manual demo: npm run seed && npm run dev → /api-docs → Postman 08 E2E Flow.
+Optional: CI pipeline, deploy, token issuance endpoint.
 ```
 
 **Priority order if deviating from strict checkpoint sequence:**
@@ -81,7 +80,7 @@ Optional backfill: Checkpoint 6–9 tests (slot engine edge cases, core-routes, 
 | 13 | Appointment List | Done | Cursor pagination + 90-day cap. `appointment-list.test.js` (5). |
 | 14 | Availability Validate | Done | Exceptions-aware conflict detection. Covered in `core-routes.test.js`. |
 | 15 | Waitlist | Done | Cancel → offer; accept creates confirmed appointment in one transaction; expired/superseded queue advance; `tests/waitlist.test.js` (7) + `tests/waitlist.concurrency.test.js` (1). |
-| 16 | Full Regression and Cleanup | Done | `README.md`, expanded seed, `tests/zz-seed.test.js`, 90-day list cap, validate w/ exceptions. `npm test` 43 pass; `npm run test:seed` 1 pass. |
+| 16 | Full Regression and Cleanup | Done | README, seed, 97 tests, Swagger (`/api-docs`), Postman collection, JWT + waitlist ownership. |
 
 ## Test Summary
 
@@ -245,7 +244,19 @@ Completed:
 
 Tests run: `npm test` — 88 passed.
 
-Next: manual demo; optional auth hardening (JWT, waitlist ownership).
+### Session 8 — Swagger + Postman
+
+Status: `Done`
+
+Completed:
+
+- `openapi/openapi.yaml` — OpenAPI 3 spec for all routes
+- Swagger UI at `/api-docs` (`swagger-ui-express`)
+- `postman/ClinicOS.postman_collection.json` — full API, variables, **08 E2E Flow**
+- Postman auto-signs JWT from `jwtSecret` (matches `.env`)
+- Docs updated: README, Task.md, ApiContracts.md, CursorPlan.md, TestingPlan.md, Progress.md
+
+Next: manual demo via Postman E2E folder.
 
 ## Files Created Or Changed By Checkpoint
 
@@ -495,16 +506,16 @@ Files:
 
 ```txt
 README.md
+openapi/openapi.yaml
+src/config/swagger.js
+postman/ClinicOS.postman_collection.json
 scripts/seed.js
 tests/zz-seed.test.js
-src/controllers/appointment.controller.js
-src/services/availability.service.js
-package.json
 ```
 
-Tests: `npm test` (43), `npm run test:seed` (1).
+Tests: `npm test` (97), `npm run test:seed` (1).
 
-Completion notes: Done. README includes double-booking demo. Seed matches Task.md counts. No `slots` collection.
+Completion notes: Done. Swagger at `/api-docs`. Postman E2E collection. README + all core docs reference OpenAPI and Postman paths.
 
 ## Route Inventory (implemented)
 

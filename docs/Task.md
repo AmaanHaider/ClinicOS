@@ -1645,6 +1645,10 @@ clinic-scheduling-engine/
 │       ├── transactions.js
 │       ├── ids.js
 │       └── errors.js
+├── openapi/
+│   └── openapi.yaml
+├── postman/
+│   └── ClinicOS.postman_collection.json
 ├── tests/
 │   ├── slot.engine.test.js
 │   ├── booking.concurrency.test.js
@@ -1653,7 +1657,7 @@ clinic-scheduling-engine/
 │   └── waitlist.test.js
 └── scripts/
     ├── seed.js
-    └── setup-indexes.js
+    ├── setup-indexes.js
 ```
 
 ---
@@ -1676,6 +1680,11 @@ npm run seed
 
 # Verify the API is running
 curl http://localhost:3000/health
+
+# Open Swagger UI
+open http://localhost:3000/api-docs
+
+# Postman: set jwtSecret / jwtExpiresIn in environment to match .env (tokens auto-signed)
 ```
 
 **Environment variables (.env.example):**

@@ -479,6 +479,8 @@ Acceptance:
 - Double-booking demo instructions exist.
 - No undocumented collections.
 - No pre-materialized slots.
+- OpenAPI spec at `openapi/openapi.yaml` served at `/api-docs`.
+- Postman collection at `postman/ClinicOS.postman_collection.json` with E2E flow.
 
 ## Final Manual Demo Checklist
 
@@ -497,4 +499,5 @@ Before showing anyone:
 11. Cancel an appointment and verify reservation released.
 12. Reschedule and verify same appointment ID.
 13. Test cross-clinic access rejection.
+14. Open Swagger UI at `/api-docs` and run Postman **08 E2E Flow** folder.
 

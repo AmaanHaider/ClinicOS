@@ -2,6 +2,18 @@
 
 This file turns the endpoint section of `docs/Task.md` into implementation-ready contracts. If there is a conflict, `docs/Task.md` is the source of truth.
 
+## Interactive API docs
+
+| Format | Location |
+|--------|----------|
+| Swagger UI (running server) | `GET /api-docs` |
+| OpenAPI JSON | `GET /api-docs/openapi.json` |
+| OpenAPI YAML (source) | `openapi/openapi.yaml` |
+
+## Postman
+
+Postman: `postman/ClinicOS.postman_collection.json` (single file; `clinic_india` defaults in collection variables). JWT auto-signed from `jwtSecret` / `jwtExpiresIn` (match `.env`). Dev headers work when `NODE_ENV` is not `production`.
+
 ## Global API Rules
 
 - All tenant-owned endpoints are scoped by authenticated `clinicId`.

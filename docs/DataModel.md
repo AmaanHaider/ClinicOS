@@ -2,6 +2,8 @@
 
 This file is the implementation-focused data model extracted from `docs/Task.md`. If there is a conflict, `docs/Task.md` is the source of truth.
 
+**HTTP API:** OpenAPI at `openapi/openapi.yaml`, Swagger UI at `/api-docs`, manual E2E via `postman/ClinicOS.postman_collection.json` (see `docs/ApiContracts.md`).
+
 ## Core Rules
 
 - `clinicId` exists on every tenant-owned document.

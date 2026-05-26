@@ -34,6 +34,20 @@ npm run dev
 
 Health check: `GET http://localhost:3000/health`
 
+## API documentation
+
+| Resource | URL |
+|----------|-----|
+| **Swagger UI** | http://localhost:3000/api-docs |
+| **OpenAPI JSON** | http://localhost:3000/api-docs/openapi.json |
+| **OpenAPI source** | `openapi/openapi.yaml` |
+
+## Postman
+
+Import **`postman/ClinicOS.postman_collection.json`** (single file — variables are on the collection). Set `jwtSecret` and `jwtExpiresIn` under **Collection variables** to match `JWT_SECRET` and `JWT_EXPIRES_IN` in your `.env`.
+
+Bearer tokens are **signed automatically** before each request. Run **08 E2E Flow** after `npm run seed`. Folder **09 Dev Headers** is optional when `NODE_ENV` is not `production`.
+
 ## Scripts
 
 | Command | Purpose |
@@ -41,6 +55,7 @@ Health check: `GET http://localhost:3000/health`
 | `npm run dev` | Start API with watch mode |
 | `npm start` | Start API |
 | `npm test` | Run Vitest suite (uses `MONGODB_URI` from `.env`) |
+| `npm run test:all` | Integration tests + seed smoke test |
 | `npm run seed` | Reset DB and load demo clinics, doctors, appointments, waitlist |
 | `npm run setup:indexes` | Sync Mongoose indexes to MongoDB |
 
@@ -205,8 +220,10 @@ Integration tests use `MONGODB_URI` from `.env` (Atlas or local). Vitest runs wi
 | `docs/CursorPlan.md` | Implementation checkpoints |
 | `docs/Progress.md` | Session resume tracker |
 | `docs/DataModel.md` | Schema and indexes |
-| `docs/ApiContracts.md` | HTTP contracts |
+| `docs/ApiContracts.md` | HTTP contracts (see also Swagger) |
 | `docs/TestingPlan.md` | Test matrix |
+| `openapi/openapi.yaml` | Machine-readable OpenAPI 3 spec |
+| `postman/ClinicOS.postman_collection.json` | Postman collection (variables included) |
 
 ## Environment variables
 

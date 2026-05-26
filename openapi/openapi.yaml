@@ -1,0 +1,990 @@
+openapi: 3.0.3
+info:
+  title: ClinicOS Scheduling API
+  description: |
+    Multi-tenant clinic scheduling engine. Slots are computed on demand (no pre-materialised slots collection).
+
+    ## Authentication
+
+    **Production** (`NODE_ENV=production`): `Authorization: Bearer <JWT>` only.
+
+    JWT claims: `sub` (actor id), `clinicId`, `role` (`patient` | `clinic_staff` | `system`), `name` (optional).
+
+    **Development / test**: when no Bearer token is sent, these headers are accepted:
+    - `x-clinic-id`
+    - `x-actor-id`
+    - `x-actor-role`
+    - `x-actor-name`
+
+    URL paths containing `/clinics/{clinicId}` must match the token clinic or the API returns `403`.
+  version: 1.0.0
+  contact:
+    name: ClinicOS
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Clinics
+  - name: Doctors
+  - name: Appointment Types
+  - name: Availability
+  - name: Slots
+  - name: Appointments
+  - name: Waitlist
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+
+  /clinics:
+    post:
+      tags: [Clinics]
+      summary: Create clinic (public)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClinicRequest"
+      responses:
+        "201":
+          description: Clinic created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clinic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /clinics/{clinicId}/doctors:
+    post:
+      tags: [Doctors]
+      summary: Create doctor
+      parameters:
+        - $ref: "#/components/parameters/clinicIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDoctorRequest"
+      responses:
+        "201":
+          description: Doctor created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Doctor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    get:
+      tags: [Doctors]
+      summary: List doctors
+      parameters:
+        - $ref: "#/components/parameters/clinicIdPath"
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: appointmentType
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Doctor list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Doctor"
+
+  /clinics/{clinicId}/appointment-types:
+    post:
+      tags: [Appointment Types]
+      summary: Create appointment type
+      parameters:
+        - $ref: "#/components/parameters/clinicIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppointmentTypeRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentType"
+    get:
+      tags: [Appointment Types]
+      summary: List appointment types
+      parameters:
+        - $ref: "#/components/parameters/clinicIdPath"
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AppointmentType"
+
+  /appointment-types/{id}:
+    patch:
+      tags: [Appointment Types]
+      summary: Update appointment type
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchAppointmentTypeRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentType"
+
+  /doctors/{id}/availability:
+    put:
+      tags: [Availability]
+      summary: Replace weekly availability template
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyAvailabilityRequest"
+      responses:
+        "200":
+          description: Template updated
+    get:
+      tags: [Availability]
+      summary: Get template and future exceptions
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+
+  /doctors/{id}/exceptions:
+    post:
+      tags: [Availability]
+      summary: Upsert date exception (block, override, additional)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExceptionRequest"
+      responses:
+        "201":
+          description: Exception saved
+
+  /doctors/{id}/exceptions/{date}:
+    delete:
+      tags: [Availability]
+      summary: Delete exception for date
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Exception deleted
+
+  /doctors/{id}/availability/validate:
+    post:
+      tags: [Availability]
+      summary: Validate proposed template against confirmed appointments
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidateAvailabilityRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateAvailabilityResponse"
+
+  /slots:
+    get:
+      tags: [Slots]
+      summary: Query available slots (computed on demand)
+      parameters:
+        - name: clinicId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: doctorId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: appointmentType
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlotsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /appointments:
+    post:
+      tags: [Appointments]
+      summary: Book appointment (held reservation + pending)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppointmentRequest"
+      responses:
+        "201":
+          description: New booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "200":
+          description: Idempotent retry returned existing appointment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /appointments/{id}/confirm:
+    patch:
+      tags: [Appointments]
+      summary: Confirm pending appointment
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "410":
+          $ref: "#/components/responses/Gone"
+
+  /appointments/{id}:
+    patch:
+      tags: [Appointments]
+      summary: Reschedule appointment
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RescheduleAppointmentRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Appointments]
+      summary: Cancel appointment
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelAppointmentRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+    get:
+      tags: [Appointments]
+      summary: Get appointment by id
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /appointments/{id}/noshow:
+    patch:
+      tags: [Appointments]
+      summary: Mark confirmed past appointment as no-show (staff)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+
+  /appointments/{id}/complete:
+    patch:
+      tags: [Appointments]
+      summary: Mark confirmed past appointment as completed (staff)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+
+  /appointments/{id}/history:
+    get:
+      tags: [Appointments]
+      summary: Appointment audit history
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentHistoryResponse"
+
+  /clinics/{clinicId}/appointments:
+    get:
+      tags: [Appointments]
+      summary: List appointments for clinic
+      parameters:
+        - $ref: "#/components/parameters/clinicIdPath"
+        - name: doctorId
+          in: query
+          schema:
+            type: string
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: patientId
+          in: query
+          schema:
+            type: string
+        - name: after
+          in: query
+          schema:
+            type: string
+          description: Cursor for pagination
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 100
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentListResponse"
+
+  /waitlist:
+    post:
+      tags: [Waitlist]
+      summary: Join waitlist when day is fully booked
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinWaitlistRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /waitlist/{id}/accept:
+    post:
+      tags: [Waitlist]
+      summary: Accept waitlist offer (offered patient only)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          description: Confirmed appointment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "410":
+          $ref: "#/components/responses/Gone"
+
+  /waitlist/{id}:
+    delete:
+      tags: [Waitlist]
+      summary: Leave waitlist (patient or staff)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntry"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /doctors/{id}/waitlist:
+    get:
+      tags: [Waitlist]
+      summary: List waitlist for doctor (staff)
+      parameters:
+        - $ref: "#/components/parameters/idPath"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WaitlistEntry"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Production auth. Claims sub, clinicId, role, name.
+
+  parameters:
+    clinicIdPath:
+      name: clinicId
+      in: path
+      required: true
+      schema:
+        type: string
+    idPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden (e.g. clinic mismatch or waitlist ownership)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict (e.g. slot taken)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Gone:
+      description: Expired hold or waitlist offer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+
+    CreateClinicRequest:
+      type: object
+      required: [name, timezone]
+      properties:
+        name:
+          type: string
+        timezone:
+          type: string
+          example: Asia/Kolkata
+        address:
+          type: object
+        contactEmail:
+          type: string
+          format: email
+        contactPhone:
+          type: string
+
+    Clinic:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        timezone:
+          type: string
+        isActive:
+          type: boolean
+
+    CreateDoctorRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        specialisation:
+          type: string
+        email:
+          type: string
+        supportedAppointmentTypes:
+          type: array
+          items:
+            type: string
+
+    Doctor:
+      type: object
+      properties:
+        _id:
+          type: string
+        clinicId:
+          type: string
+        name:
+          type: string
+        supportedAppointmentTypes:
+          type: array
+          items:
+            type: string
+
+    CreateAppointmentTypeRequest:
+      type: object
+      required: [name, durationMinutes]
+      properties:
+        name:
+          type: string
+        durationMinutes:
+          type: integer
+          minimum: 1
+        color:
+          type: string
+
+    PatchAppointmentTypeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        durationMinutes:
+          type: integer
+        color:
+          type: string
+        isActive:
+          type: boolean
+
+    AppointmentType:
+      type: object
+      properties:
+        _id:
+          type: string
+        clinicId:
+          type: string
+        name:
+          type: string
+        durationMinutes:
+          type: integer
+
+    WeeklyAvailabilityRequest:
+      type: object
+      required: [weeklyTemplate]
+      properties:
+        weeklyTemplate:
+          $ref: "#/components/schemas/WeeklyTemplate"
+
+    WeeklyTemplate:
+      type: object
+      properties:
+        MON:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+        TUE:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+        WED:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+        THU:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+        FRI:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+        SAT:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+        SUN:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeWindow"
+
+    TimeWindow:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          example: "09:00"
+        end:
+          type: string
+          example: "17:00"
+
+    AvailabilityResponse:
+      type: object
+      properties:
+        doctorId:
+          type: string
+        weeklyTemplate:
+          $ref: "#/components/schemas/WeeklyTemplate"
+        exceptions:
+          type: array
+          items:
+            type: object
+
+    ExceptionRequest:
+      oneOf:
+        - type: object
+          required: [date, type]
+          properties:
+            date:
+              type: string
+              format: date
+            type:
+              type: string
+              enum: [block]
+            reason:
+              type: string
+        - type: object
+          required: [date, type, windows]
+          properties:
+            date:
+              type: string
+              format: date
+            type:
+              type: string
+              enum: [override, additional]
+            windows:
+              type: array
+              items:
+                $ref: "#/components/schemas/TimeWindow"
+            reason:
+              type: string
+
+    ValidateAvailabilityRequest:
+      type: object
+      required: [proposedTemplate, dateRange]
+      properties:
+        proposedTemplate:
+          $ref: "#/components/schemas/WeeklyTemplate"
+        dateRange:
+          type: object
+          required: [from, to]
+          properties:
+            from:
+              type: string
+              format: date
+            to:
+              type: string
+              format: date
+
+    ValidateAvailabilityResponse:
+      type: object
+      properties:
+        conflictCount:
+          type: integer
+        conflicts:
+          type: array
+          items:
+            type: object
+
+    SlotsResponse:
+      type: object
+      properties:
+        doctorId:
+          type: string
+        appointmentType:
+          type: string
+        durationMinutes:
+          type: integer
+        from:
+          type: string
+        to:
+          type: string
+        slots:
+          type: array
+          items:
+            type: object
+            properties:
+              start:
+                type: string
+                format: date-time
+              end:
+                type: string
+                format: date-time
+              startLocal:
+                type: string
+        message:
+          type: string
+
+    CreateAppointmentRequest:
+      type: object
+      required: [doctorId, appointmentTypeId, slotStart]
+      properties:
+        doctorId:
+          type: string
+        patientId:
+          type: string
+        appointmentTypeId:
+          type: string
+        slotStart:
+          type: string
+          format: date-time
+        idempotencyKey:
+          type: string
+        patient:
+          type: object
+        notes:
+          type: string
+
+    RescheduleAppointmentRequest:
+      type: object
+      required: [newSlotStart]
+      properties:
+        newSlotStart:
+          type: string
+          format: date-time
+        reason:
+          type: string
+
+    CancelAppointmentRequest:
+      type: object
+      required: [cancelledBy]
+      properties:
+        cancelledBy:
+          type: string
+          enum: [patient, clinic_staff, system]
+        reason:
+          type: string
+
+    Appointment:
+      type: object
+      properties:
+        _id:
+          type: string
+        clinicId:
+          type: string
+        doctorId:
+          type: string
+        patientId:
+          type: string
+        appointmentTypeId:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, expired, no_show, completed]
+        currentReservationId:
+          type: string
+        currentSlotStart:
+          type: string
+          format: date-time
+        currentSlotEnd:
+          type: string
+          format: date-time
+
+    AppointmentHistoryResponse:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+        events:
+          type: array
+          items:
+            type: object
+
+    AppointmentListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Appointment"
+        nextCursor:
+          type: string
+          nullable: true
+
+    JoinWaitlistRequest:
+      type: object
+      required: [doctorId, targetDate, appointmentTypeId]
+      properties:
+        doctorId:
+          type: string
+        targetDate:
+          type: string
+          format: date
+        appointmentTypeId:
+          type: string
+        patientId:
+          type: string
+        patient:
+          type: object
+        urgencyFlag:
+          type: boolean
+          default: false
+
+    WaitlistEntry:
+      type: object
+      properties:
+        _id:
+          type: string
+        clinicId:
+          type: string
+        doctorId:
+          type: string
+        appointmentTypeId:
+          type: string
+        targetDate:
+          type: string
+        patientId:
+          type: string
+        status:
+          type: string
+        urgencyFlag:
+          type: boolean
+
+security:
+  - bearerAuth: []

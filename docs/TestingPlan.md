@@ -12,6 +12,17 @@ Recommended:
 
 Do not fake the unique index or transaction behavior in core booking tests. The most important correctness properties must be tested against MongoDB.
 
+## API documentation and manual testing
+
+| Artifact | Path |
+|----------|------|
+| OpenAPI 3 YAML | `openapi/openapi.yaml` |
+| Swagger UI | `http://localhost:3000/api-docs` (when server running) |
+| Postman | `postman/ClinicOS.postman_collection.json` (variables + JWT signing in one file) |
+| Postman JWT | Auto-signed from collection `jwtSecret` / `jwtExpiresIn` (same as `.env`) |
+
+Use the Postman **08 E2E Flow** folder as the manual regression checklist after seed.
+
 ## Test Categories
 
 1. Unit tests for pure slot engine.
