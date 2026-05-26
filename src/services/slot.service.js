@@ -1,9 +1,33 @@
 import { DateTime } from "luxon";
 import { AppointmentType, AvailabilityException, AvailabilityTemplate, Clinic, SlotReservation } from "../models/index.js";
-import { BadRequestError, NotFoundError } from "../utils/errors.js";
+import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { parseDate } from "../utils/timezone.js";
 import { computeAvailableSlots } from "./slot.engine.js";
 import { requireDoctor } from "./doctor.service.js";
+
+function activeReservationFilter(now = new Date()) {
+  return {
+    $or: [{ status: "confirmed" }, { status: "held", holdExpiresAt: { $gt: now } }]
+  };
+}
+
+export async function assertNoActiveReservationOverlap(clinicId, { doctorId, slotStart, slotEnd, excludeReservationId }) {
+  const start = slotStart instanceof Date ? slotStart : new Date(slotStart);
+  const end = slotEnd instanceof Date ? slotEnd : new Date(slotEnd);
+  const filter = {
+    clinicId,
+    doctorId,
+    slotStart: { $lt: end },
+    slotEnd: { $gt: start },
+    ...activeReservationFilter()
+  };
+  if (excludeReservationId) filter._id = { $ne: excludeReservationId };
+
+  const conflicting = await SlotReservation.findOne(filter).lean();
+  if (conflicting) {
+    throw new ConflictError("This slot has just been taken. Please select another.", { slotStart: start });
+  }
+}
 
 export async function getSlots(clinicId, { doctorId, appointmentType, from, to }) {
   const fromDt = parseDate(from);
@@ -33,7 +57,7 @@ export async function getSlots(clinicId, { doctorId, appointmentType, from, to }
     doctorId,
     slotStart: { $lt: rangeEnd },
     slotEnd: { $gt: rangeStart },
-    $or: [{ status: "confirmed" }, { status: "held", holdExpiresAt: { $gt: now } }]
+    ...activeReservationFilter(now)
   }).select("slotStart slotEnd status holdExpiresAt").lean();
 
   const slots = computeAvailableSlots({
@@ -58,4 +82,3 @@ export async function assertGeneratedSlot(clinicId, { doctorId, appointmentTypeI
   if (!found) throw new BadRequestError("Requested slot is not available or not on a generated slot boundary");
   return found;
 }
-

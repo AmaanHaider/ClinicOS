@@ -49,6 +49,27 @@ export async function deleteException(clinicId, doctorId, date) {
   return deleted;
 }
 
+function windowsForDate(date, proposedTemplate, exceptionsByDate) {
+  const exception = exceptionsByDate[date];
+  if (exception?.type === "block") return [];
+  if (exception?.type === "override") return exception.windows || [];
+  const weekday = DateTime.fromISO(date, { zone: "utc" }).weekday;
+  const day = days[weekday - 1];
+  return proposedTemplate[day] || [];
+}
+
+function appointmentFitsWindows(appt, windows, timezone) {
+  const local = DateTime.fromJSDate(appt.currentSlotStart, { zone: "utc" }).setZone(timezone);
+  const mins = local.hour * 60 + local.minute;
+  const endLocal = DateTime.fromJSDate(appt.currentSlotEnd, { zone: "utc" }).setZone(timezone);
+  const endMins = endLocal.hour * 60 + endLocal.minute;
+  return windows.some((w) => {
+    const [sh, sm] = w.start.split(":").map(Number);
+    const [eh, em] = w.end.split(":").map(Number);
+    return mins >= sh * 60 + sm && endMins <= eh * 60 + em;
+  });
+}
+
 export async function validateAvailabilityChange(clinicId, doctorId, proposedTemplate, dateRange) {
   await requireDoctor(clinicId, doctorId);
   const from = parseDate(dateRange.from);
@@ -56,6 +77,12 @@ export async function validateAvailabilityChange(clinicId, doctorId, proposedTem
   if (to < from) throw new BadRequestError("to must be after from");
   if (to.diff(from, "days").days > 90) throw new BadRequestError("Maximum validation range is 90 days");
   const clinic = await Clinic.findById(clinicId).lean();
+  const exceptions = await AvailabilityException.find({
+    clinicId,
+    doctorId,
+    date: { $gte: dateRange.from, $lte: dateRange.to }
+  }).lean();
+  const exceptionsByDate = Object.fromEntries(exceptions.map((e) => [e.date, e]));
   const appointments = await Appointment.find({
     clinicId,
     doctorId,
@@ -63,16 +90,9 @@ export async function validateAvailabilityChange(clinicId, doctorId, proposedTem
     currentSlotStart: { $gte: from.toJSDate(), $lte: to.endOf("day").toJSDate() }
   }).lean();
   const conflicts = appointments.filter((appt) => {
-    const local = DateTime.fromJSDate(appt.currentSlotStart, { zone: "utc" }).setZone(clinic.timezone);
-    const day = days[local.weekday - 1];
-    const mins = local.hour * 60 + local.minute;
-    const endLocal = DateTime.fromJSDate(appt.currentSlotEnd, { zone: "utc" }).setZone(clinic.timezone);
-    const endMins = endLocal.hour * 60 + endLocal.minute;
-    return !(proposedTemplate[day] || []).some((w) => {
-      const [sh, sm] = w.start.split(":").map(Number);
-      const [eh, em] = w.end.split(":").map(Number);
-      return mins >= sh * 60 + sm && endMins <= eh * 60 + em;
-    });
+    const date = DateTime.fromJSDate(appt.currentSlotStart, { zone: "utc" }).setZone(clinic.timezone).toISODate();
+    const windows = windowsForDate(date, proposedTemplate, exceptionsByDate);
+    return !appointmentFitsWindows(appt, windows, clinic.timezone);
   });
   return { conflictCount: conflicts.length, conflicts: conflicts.map((a) => ({ appointmentId: a._id, slotStart: a.currentSlotStart, patientName: a.patient?.name, appointmentType: a.appointmentTypeName })) };
 }

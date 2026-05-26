@@ -3,7 +3,7 @@ import { env } from "./env.js";
 
 export async function connectDb(uri = env.MONGODB_URI) {
   mongoose.set("strictQuery", true);
-  await mongoose.connect(uri, { maxPoolSize: 50, serverSelectionTimeoutMS: 5000 });
+  await mongoose.connect(uri, { maxPoolSize: 50, serverSelectionTimeoutMS: 15000 });
 }
 
 export async function disconnectDb() {

@@ -1,5 +1,6 @@
 import { Appointment } from "../models/Appointment.js";
 import { BadRequestError, NotFoundError } from "../utils/errors.js";
+import { parseDate } from "../utils/timezone.js";
 import * as booking from "../services/booking.service.js";
 import { history } from "../services/event.service.js";
 
@@ -59,7 +60,11 @@ export async function listAppointments(req, res, next) {
       const end = new Date(`${q.date}T23:59:59.999Z`);
       filter.currentSlotStart = { $gte: start, $lte: end };
     } else if (q.from && q.to) {
-      filter.currentSlotStart = { $gte: new Date(q.from), $lte: new Date(q.to) };
+      const fromDt = parseDate(q.from);
+      const toDt = parseDate(q.to);
+      if (toDt < fromDt) throw new BadRequestError("to must be after from");
+      if (toDt.diff(fromDt, "days").days > 90) throw new BadRequestError("Maximum date range is 90 days");
+      filter.currentSlotStart = { $gte: fromDt.toJSDate(), $lte: toDt.endOf("day").toJSDate() };
     }
     if (q.after) filter._id = { $gt: q.after };
     const limit = q.limit || 50;

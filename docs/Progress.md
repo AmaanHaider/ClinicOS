@@ -42,29 +42,26 @@ Do not mark a checkpoint `Done` unless:
 
 ## Current Resume Point
 
-**Current checkpoint:** `Checkpoint 10 — Booking: POST /appointments` (tests and hardening)
+**Current checkpoint:** `Checkpoint 16 — Full Regression and Cleanup`
 
-**Current status:** `In Progress` — booking service implemented; integration and concurrency tests missing
+**Current status:** `Not Started`
 
-**Overall:** ~70–75% feature code in place; ~15–20% of `docs/TestingPlan.md` test coverage
+**Overall:** ~80–85% feature code; waitlist flow complete with integration + concurrency tests (43 total)
 
 **Next Cursor prompt:**
 
 ```txt
 Read docs/Progress.md first, then docs/CursorPlan.md.
 
-Continue from Checkpoint 10. Add booking integration tests and booking.concurrency.test.js against Docker Mongo replica set. Then harden booking (overlap check before claim) and wire waitlist offer on cancel (Checkpoint 15 gap).
+Continue from Checkpoint 16. Add README, expand seed to spec, seed smoke test, and run full regression.
 
 Run npm test and record results in docs/Progress.md.
 ```
 
 **Priority order if deviating from strict checkpoint sequence:**
 
-1. Checkpoint 10 — `booking.test.js`, `booking.concurrency.test.js` (Docker Mongo required)
-2. Checkpoint 11 — `appointment-transitions.test.js`, concurrency variants
-3. Checkpoint 15 — wire `offerNextWaitlistPatient` on cancel; fix accept → confirm flow; queue advance
-4. Checkpoint 6 — expand `slot.engine.test.js` (DST, additional, partial slot, expired held)
-5. Checkpoint 16 — README, seed smoke test, full regression
+1. Checkpoint 16 — README, seed smoke test, full regression
+2. Checkpoint 6–9, 13–14 — backfill remaining API/unit tests
 
 ## Checkpoint Tracker
 
@@ -80,27 +77,34 @@ Run npm test and record results in docs/Progress.md.
 | 7 | Core CRUD Routes | In Progress | All clinic/doctor/type/availability routes wired. No `core-routes.test.js`. |
 | 8 | GET /slots | In Progress | `slot.service.js` + controller done. No `slots.api.test.js`. Query requires `clinicId` but handler uses token `clinicId`. |
 | 9 | Event Service | In Progress | `event.service.js` + history endpoint. No `events.test.js`. |
-| 10 | Booking: POST /appointments | In Progress | Full flow: held reservation, pending appointment, created event, idempotency, lazy expiry + one retry. No booking or concurrency tests. No explicit overlap check before insert. |
-| 11 | Confirm, Cancel, Reschedule | In Progress | All implemented. Gaps: confirm lacks optimistic `version` filter; cancel does not trigger waitlist offer. No transition tests. |
-| 12 | Complete and No-Show | In Progress | `markOutcome` + routes done. No dedicated API tests. |
+| 10 | Booking: POST /appointments | Done | Overlap check before claim; idempotency; lazy expiry; `tests/booking.test.js` + `tests/booking.concurrency.test.js` (20 parallel, Atlas). |
+| 11 | Confirm, Cancel, Reschedule | Done | Optimistic `version` on confirm/cancel; reschedule overlap check; transition + concurrency tests. Cancel triggers waitlist offer (CP15). |
+| 12 | Complete and No-Show | Done | Staff-only `markOutcome` with optimistic version; `tests/appointment-outcomes.test.js` (8 cases). |
 | 13 | Appointment List | In Progress | Cursor pagination (`after` + `limit`). Missing 90-day range cap on `from`/`to`. No list tests. |
 | 14 | Availability Validate | In Progress | Endpoint exists; logic checks weekly template only (ignores exceptions). No tests. |
-| 15 | Waitlist | In Progress | Join, accept, list, remove + `offerNextWaitlistPatient` helper. Cancel does not call offer helper. Accept leaves appointment `pending` (no auto-confirm). No queue advance on expired/superseded. No concurrency tests. |
-| 16 | Full Regression and Cleanup | Not Started | No README. Only 7 unit tests pass. No double-booking demo docs. |
+| 15 | Waitlist | Done | Cancel → offer; accept creates confirmed appointment in one transaction; expired/superseded queue advance; `tests/waitlist.test.js` (7) + `tests/waitlist.concurrency.test.js` (1). |
+| 16 | Full Regression and Cleanup | Not Started | No README. 43 tests pass. Seed still below spec. No double-booking demo docs. |
 
 ## Test Summary
 
-Last run: `npm test` — **7 passed** (3 files)
+Last run: `npm test` — **43 passed** (10 files)
 
 | File | Tests | Type |
 |---|---|---|
 | `tests/health.test.js` | 1 | HTTP (no DB) |
 | `tests/index-definitions.test.js` | 3 | Schema index definitions (no live Mongo) |
 | `tests/slot.engine.test.js` | 3 | Pure unit |
+| `tests/booking.test.js` | 7 | Integration (MongoDB Atlas via `.env`) |
+| `tests/booking.concurrency.test.js` | 1 | Concurrency (20 parallel bookings) |
+| `tests/appointment-transitions.test.js` | 9 | Confirm, cancel, reschedule |
+| `tests/appointment-transitions.concurrency.test.js` | 3 | Concurrent confirm/cancel/reschedule |
+| `tests/appointment-outcomes.test.js` | 8 | No-show and complete |
+| `tests/waitlist.test.js` | 7 | Join, offer ordering, accept, expired, superseded |
+| `tests/waitlist.concurrency.test.js` | 1 | Parallel offer → one active offer |
 
-**Not present yet:** `validators.test.js`, `seed.test.js`, `core-routes.test.js`, `slots.api.test.js`, `booking.test.js`, `booking.concurrency.test.js`, `appointment-transitions.test.js`, `events.test.js`, `waitlist.test.js`, `waitlist.concurrency.test.js`, multi-tenancy suite.
+**Not present yet:** `validators.test.js`, `seed.test.js`, `core-routes.test.js`, `slots.api.test.js`, `events.test.js`, multi-tenancy suite.
 
-**Mongo for integration tests:** `docker compose up -d` then `npm run setup:indexes` and `npm run seed`. URI: `mongodb://localhost:27017/clinic_scheduling?replicaSet=rs0`
+**Mongo for integration tests:** Uses `MONGODB_URI` from `.env` (Atlas). Optional local: `docker compose up -d` with `mongodb://localhost:27017/clinic_scheduling?replicaSet=rs0`. Vitest runs DB tests with `fileParallelism: false`.
 
 ## Session Log
 
@@ -142,6 +146,67 @@ Known issues (see also per-checkpoint notes):
 Next:
 
 - Checkpoint 10 tests + concurrency, then Checkpoint 11/15 hardening.
+
+### Session 2 — Checkpoint 10
+
+Status: `Done`
+
+Completed:
+
+- `assertNoActiveReservationOverlap` in `slot.service.js` (overlap before slot-engine validation).
+- `tests/booking.test.js` (7 cases: create, 409 duplicate, idempotency, past slot, off-grid, overlap, lazy expiry).
+- `tests/booking.concurrency.test.js` (20 parallel → 1 success).
+- Test helpers + Vitest `fileParallelism: false` for shared Atlas DB.
+
+Tests run: `npm test` — 15 passed.
+
+Next: Checkpoint 11.
+
+### Session 3 — Checkpoint 11
+
+Status: `Done`
+
+Completed:
+
+- Optimistic `version` filter on confirm and cancel.
+- Reschedule overlap check (excludes current reservation).
+- `tests/appointment-transitions.test.js` (9 cases).
+- `tests/appointment-transitions.concurrency.test.js` (3 cases).
+- Test helpers: `bookPendingAppointment`, `nthAvailableSlot`.
+
+Tests run: `npm test` — 27 passed.
+
+Next: Checkpoint 12.
+
+### Session 4 — Checkpoint 12
+
+Status: `Done`
+
+Completed:
+
+- Hardened `markOutcome` with optimistic `version` and past-slot filter.
+- `tests/appointment-outcomes.test.js` (8 cases).
+- Helpers: `staffHeaders`, `createPastConfirmedAppointment`.
+
+Tests run: `npm test` — 35 passed.
+
+Next: Checkpoint 15.
+
+### Session 5 — Checkpoint 15
+
+Status: `Done`
+
+Completed:
+
+- `createConfirmedAppointment` for waitlist accept (confirmed reservation + appointment in one transaction).
+- `cancelAppointment` triggers `triggerWaitlistOfferAfterCancellation` (dynamic import).
+- Waitlist queue: urgency then `joinedAt`; expired offer → 410 + advance; superseded offer → 409 + advance (entry `expired_offer`, not re-queued).
+- `tests/waitlist.test.js` (7 cases), `tests/waitlist.concurrency.test.js` (1 case).
+- `cleanupFixture` clears `WaitlistEntry` and `SlotOffer`.
+
+Tests run: `npm test` — 43 passed.
+
+Next: Checkpoint 16.
 
 ## Files Created Or Changed By Checkpoint
 
@@ -301,32 +366,49 @@ Completion notes: In Progress — add `tests/events.test.js`.
 
 ### Checkpoint 10 — Booking: POST /appointments
 
-Files: `src/services/booking.service.js` (`createAppointment`, `expireBlockingHold`)
+Files:
 
-Tests: None.
+```txt
+src/services/booking.service.js
+src/services/slot.service.js          # assertNoActiveReservationOverlap
+tests/helpers/db.js
+tests/helpers/fixtures.js
+tests/booking.test.js
+tests/booking.concurrency.test.js
+```
 
-Completion notes: In Progress — add `tests/booking.test.js`, `tests/booking.concurrency.test.js`; add overlap check before reservation insert.
+Tests: 8 booking tests — pass (`npm test`).
+
+Completion notes: Done. Overlap check runs before `assertGeneratedSlot`. Lazy expiry + single retry. Concurrency: exactly 1 of 20 parallel bookings succeeds on Atlas.
 
 ### Checkpoint 11 — Confirm, Cancel, Reschedule
 
-Files: `booking.service.js` — `confirmAppointment`, `cancelAppointment`, `rescheduleAppointment`
+Files:
 
-Tests: None.
+```txt
+src/services/booking.service.js
+tests/appointment-transitions.test.js
+tests/appointment-transitions.concurrency.test.js
+tests/helpers/fixtures.js
+```
 
-Gaps:
+Tests: 12 transition tests — pass.
 
-- Cancel does not call `waitlist.service.offerNextWaitlistPatient`.
-- Confirm does not use `{ version }` optimistic filter on update.
-
-Completion notes: In Progress — add `tests/appointment-transitions.test.js` and concurrency variants.
+Completion notes: Done. Waitlist offer on cancel deferred to Checkpoint 15.
 
 ### Checkpoint 12 — Complete and No-Show
 
-Files: `booking.service.js` — `markOutcome`; routes `PATCH .../noshow`, `PATCH .../complete`
+Files:
 
-Tests: None.
+```txt
+src/services/booking.service.js          # markOutcome
+tests/appointment-outcomes.test.js
+tests/helpers/fixtures.js                # staffHeaders, createPastConfirmedAppointment
+```
 
-Completion notes: In Progress — cover in transition tests.
+Tests: 8 outcome tests — pass.
+
+Completion notes: Done.
 
 ### Checkpoint 13 — Appointment List
 
@@ -354,21 +436,19 @@ Files:
 
 ```txt
 src/services/waitlist.service.js
+src/services/booking.service.js
 src/controllers/waitlist.controller.js
 src/validators/waitlist.validator.js
+tests/waitlist.test.js
+tests/waitlist.concurrency.test.js
+tests/helpers/fixtures.js
 ```
 
 Routes: `POST /waitlist`, `POST /waitlist/:id/accept`, `GET /doctors/:id/waitlist`, `DELETE /waitlist/:id`
 
-Tests: None.
+Tests: `tests/waitlist.test.js` (7), `tests/waitlist.concurrency.test.js` (1).
 
-Gaps:
-
-- `offerNextWaitlistPatient` not called from cancel flow.
-- Accept uses `createAppointment` (pending) without confirm.
-- No expired-offer / superseded / advance-queue logic.
-
-Completion notes: In Progress — wire cancel → offer; fix accept; add `tests/waitlist.test.js` and concurrency tests.
+Completion notes: Done. Cancel offers slot via partial unique index on active offers; accept confirms in one transaction; expired/superseded advances queue.
 
 ### Checkpoint 16 — Full Regression and Cleanup
 
