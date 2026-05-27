@@ -504,12 +504,12 @@ Acceptance:
 ## Checkpoint 18 — Auth Layer Docs and Tooling Alignment
 
 Goal:
-- Move manual testing/docs from mint-jwt to login flow.
+- Move manual testing/docs to login flow only.
 
 Prompt:
 
 ```txt
-Implement Checkpoint 18. Update Postman, e2e scripts, and docs to use login/signup flow instead of manual token minting. Keep mint-jwt only as optional developer fallback unless explicitly removed.
+Implement Checkpoint 18. Update Postman, e2e scripts, and docs to use login/signup flow instead of manual token minting.
 ```
 
 Acceptance:

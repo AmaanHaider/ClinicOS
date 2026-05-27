@@ -132,10 +132,6 @@ export function staffHeaders(clinicId) {
   return jwtHeaders(clinicId, { role: "clinic_staff", actorId: "staff_test", name: "Staff User" });
 }
 
-export function staffJwtHeaders(clinicId) {
-  return jwtHeaders(clinicId, { role: "clinic_staff", actorId: "staff_test", name: "Staff User" });
-}
-
 /** Book, confirm, then move slot into the past for no-show/complete tests. */
 /** Two isolated clinics for multi-tenancy tests. */
 export async function createTwoClinicFixture() {

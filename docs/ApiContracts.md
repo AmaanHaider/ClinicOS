@@ -18,7 +18,6 @@ Optional: `postman/ClinicOS.postman_collection.json` (not required; use `npm run
 
 - Protected routes require JWT Bearer tokens.
 - Credential endpoints are available: `POST /auth/signup`, `POST /auth/login`.
-- `npm run mint-jwt` remains available as a developer utility for manual testing and scripts.
 
 ## Global API Rules
 

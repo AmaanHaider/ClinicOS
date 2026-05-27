@@ -77,7 +77,7 @@ Optional: add refresh/logout auth session flow, CI pipeline, and audit rollback 
 | 13 | Appointment List | Done | Cursor pagination + 90-day cap. `appointment-list.test.js` (5). |
 | 14 | Availability Validate | Done | Exceptions-aware conflict detection. Covered in `core-routes.test.js`. |
 | 15 | Waitlist | Done | Cancel → offer; accept creates confirmed appointment in one transaction; expired/superseded queue advance; `tests/waitlist.test.js` (11) + `tests/waitlist.concurrency.test.js` (1). |
-| 16 | Full Regression and Cleanup | Done | README, seed, 97 tests, Swagger (`/api-docs`), JWT verification auth layer, `mint-jwt`, `e2e-curl`. |
+| 16 | Full Regression and Cleanup | Done | README, seed, 97 tests, Swagger (`/api-docs`), JWT verification auth layer, `e2e-curl`. |
 | 17 | Auth Foundation | Done | Added `users` model + indexes, `POST /auth/signup`, `POST /auth/login`, bcrypt password hashing, `tests/auth.credentials.test.js` (4). |
 
 ## Test Summary
@@ -252,7 +252,7 @@ Completed:
 - `openapi/openapi.yaml` — OpenAPI 3 spec for all routes
 - Swagger UI at `/api-docs` (`swagger-ui-express`)
 - JWT-only auth (dev headers removed)
-- `scripts/mint-jwt.js`, `scripts/e2e-curl.sh`, `npm run e2e:curl`
+- `scripts/e2e-curl.sh`, `npm run e2e:curl`
 - Docs updated: README, Task.md, ApiContracts.md, CursorPlan.md, TestingPlan.md, Progress.md
 
 ## Files Created Or Changed By Checkpoint
@@ -507,7 +507,6 @@ openapi/openapi.yaml
 src/config/swagger.js
 src/utils/jwt.js
 src/middleware/auth.js
-scripts/mint-jwt.js
 scripts/e2e-curl.sh
 scripts/seed.js
 tests/zz-seed.test.js
@@ -515,7 +514,7 @@ tests/zz-seed.test.js
 
 Tests: `npm test` (97), `npm run test:seed` (1).
 
-Completion notes: Done. Swagger at `/api-docs`. JWT-only auth. `npm run mint-jwt` and `npm run e2e:curl` for manual E2E. README + core docs aligned with implementation.
+Completion notes: Done. Swagger at `/api-docs`. JWT-only auth. `npm run e2e:curl` for manual E2E with a provided token. README + core docs aligned with implementation.
 
 ## Route Inventory (implemented)
 

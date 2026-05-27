@@ -224,44 +224,81 @@ export async function cancelAppointment(clinicId, id, data, actor) {
 }
 
 export async function rescheduleAppointment(clinicId, id, data, actor) {
-  const appointment = await Appointment.findOne({ _id: id, clinicId });
-  if (!appointment) throw new NotFoundError("Appointment not found");
-  if (!["pending", "confirmed"].includes(appointment.status)) throw new BadRequestError("Appointment cannot be rescheduled");
+  const preview = await Appointment.findOne({ _id: id, clinicId });
+  if (!preview) throw new NotFoundError("Appointment not found");
+  if (!["pending", "confirmed"].includes(preview.status)) throw new BadRequestError("Appointment cannot be rescheduled");
   const newSlotStart = parseUtcDateTime(data.newSlotStart).toJSDate();
-  if (newSlotStart.getTime() === appointment.currentSlotStart.getTime()) throw new BadRequestError("New slot is the same as current slot");
-  const type = await AppointmentType.findOne({ clinicId, _id: appointment.appointmentTypeId });
-  const newSlotEnd = DateTime.fromJSDate(newSlotStart, { zone: "utc" }).plus({ minutes: appointment.durationMinutes }).toJSDate();
+  if (newSlotStart.getTime() === preview.currentSlotStart.getTime()) throw new BadRequestError("New slot is the same as current slot");
+  const type = await AppointmentType.findOne({ clinicId, _id: preview.appointmentTypeId });
+  const newSlotEnd = DateTime.fromJSDate(newSlotStart, { zone: "utc" }).plus({ minutes: preview.durationMinutes }).toJSDate();
   await assertNoActiveReservationOverlap(clinicId, {
-    doctorId: appointment.doctorId,
+    doctorId: preview.doctorId,
     slotStart: newSlotStart,
     slotEnd: newSlotEnd,
-    excludeReservationId: appointment.currentReservationId
+    excludeReservationId: preview.currentReservationId
   });
-  const generated = await assertGeneratedSlot(clinicId, { doctorId: appointment.doctorId, appointmentTypeId: appointment.appointmentTypeId, slotStart: newSlotStart });
+  const generated = await assertGeneratedSlot(clinicId, { doctorId: preview.doctorId, appointmentTypeId: preview.appointmentTypeId, slotStart: newSlotStart });
 
   try {
     return await withTransaction(async (session) => {
+      const existing = await Appointment.findOne({ _id: id, clinicId }).session(session);
+      if (!existing) throw new NotFoundError("Appointment not found");
+      if (!["pending", "confirmed"].includes(existing.status)) throw new BadRequestError("Appointment cannot be rescheduled");
+      if (newSlotStart.getTime() === existing.currentSlotStart.getTime()) throw new BadRequestError("New slot is the same as current slot");
+
+      const previousSlotStart = existing.currentSlotStart;
+      const previousReservationId = existing.currentReservationId;
+      const status = existing.status;
+
+      const claimed = await Appointment.findOneAndUpdate(
+        { _id: id, clinicId, status: { $in: ["pending", "confirmed"] }, version: existing.version },
+        { $inc: { version: 1 } },
+        { new: true, session }
+      );
+      if (!claimed) throw new ConflictError("Appointment was already updated");
+
       const [reservation] = await SlotReservation.create([{
         clinicId,
-        doctorId: appointment.doctorId,
-        appointmentId: appointment._id,
-        appointmentTypeId: appointment.appointmentTypeId,
-        durationMinutes: appointment.durationMinutes,
+        doctorId: existing.doctorId,
+        appointmentId: existing._id,
+        appointmentTypeId: existing.appointmentTypeId,
+        durationMinutes: existing.durationMinutes,
         slotStart: newSlotStart,
         slotEnd: newSlotEnd,
         slotStartLocal: generated.startLocal,
-        status: appointment.status === "confirmed" ? "confirmed" : "held",
-        holdExpiresAt: appointment.status === "pending" ? DateTime.utc().plus({ minutes: env.PENDING_HOLD_MINUTES }).toJSDate() : undefined
+        status: status === "confirmed" ? "confirmed" : "held",
+        holdExpiresAt: status === "pending" ? DateTime.utc().plus({ minutes: env.PENDING_HOLD_MINUTES }).toJSDate() : undefined
       }], { session });
-      await SlotReservation.updateOne({ _id: appointment.currentReservationId, clinicId }, { $set: { status: "released", releasedAt: new Date() } }, { session });
-      const previousSlotStart = appointment.currentSlotStart;
-      appointment.currentReservationId = reservation._id;
-      appointment.currentSlotStart = newSlotStart;
-      appointment.currentSlotEnd = newSlotEnd;
-      appointment.appointmentTypeName = type?.name || appointment.appointmentTypeName;
-      appointment.version += 1;
-      await appointment.save({ session });
-      await writeEvent({ appointment, eventType: "rescheduled", actor, previousState: appointment.status, newState: appointment.status, metadata: { previousSlotStart, newSlotStart, reason: data.reason }, session });
+
+      await Appointment.updateOne(
+        { _id: id, clinicId },
+        {
+          $set: {
+            currentReservationId: reservation._id,
+            currentSlotStart: newSlotStart,
+            currentSlotEnd: newSlotEnd,
+            appointmentTypeName: type?.name || existing.appointmentTypeName
+          }
+        },
+        { session }
+      );
+
+      await SlotReservation.updateOne(
+        { _id: previousReservationId, clinicId, status: { $in: ["held", "confirmed"] } },
+        { $set: { status: "released", releasedAt: new Date() } },
+        { session }
+      );
+
+      const appointment = await Appointment.findOne({ _id: id, clinicId }).session(session);
+      await writeEvent({
+        appointment,
+        eventType: "rescheduled",
+        actor,
+        previousState: status,
+        newState: status,
+        metadata: { previousSlotStart, newSlotStart, reason: data.reason },
+        session
+      });
       return appointment;
     });
   } catch (err) {

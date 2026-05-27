@@ -1653,7 +1653,6 @@ clinic-scheduling-engine/
     ├── seed.js
     ├── setup-indexes.js
     ├── init-replica.js
-    ├── mint-jwt.js
     └── e2e-curl.sh
 
 ---
@@ -1680,9 +1679,8 @@ npm run dev
 # Verify the API is running
 curl http://localhost:3000/health
 
-# Mint JWT and run full curl E2E
-npm run mint-jwt
-npm run e2e:curl
+# Run full curl E2E (pass patient JWT)
+npm run e2e:curl -- http://localhost:3000 <PATIENT_JWT>
 
 # Open Swagger UI
 open http://localhost:3000/api-docs

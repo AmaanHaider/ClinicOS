@@ -56,8 +56,7 @@ Postman collection path: `postman/ClinicOS.postman_collection.json` (optional). 
 | `npm run test:all` | Integration tests + seed smoke test |
 | `npm run seed` | Reset DB and load demo clinics, doctors, appointments, waitlist |
 | `npm run setup:indexes` | Sync Mongoose indexes to MongoDB |
-| `npm run mint-jwt` | Print a Bearer JWT (uses `JWT_SECRET` from `.env`) |
-| `npm run e2e:curl` | Hit every API route via curl (server must be running) |
+| `npm run e2e:curl` | Hit every API route via curl (server must be running; pass patient JWT as script argument or `PATIENT_TOKEN`) |
 
 ## Architecture
 
@@ -118,29 +117,17 @@ JWT payload fields:
 
 Sign tokens with `JWT_SECRET` and `JWT_EXPIRES_IN` from `.env`.
 
-For manual login flow, call `POST /auth/signup` (once) then `POST /auth/login`.
+For manual auth flow:
 
-Developer fallback: generate one for curl with:
+1. `POST /auth/signup` (once per user)
+2. `POST /auth/login`
+3. Reuse returned `accessToken` as `Authorization: Bearer <token>`
 
-```bash
-npm run mint-jwt
-# staff: npm run mint-jwt -- clinic_india staff_demo clinic_staff
-export TOKEN=$(npm run mint-jwt --silent)
-curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/clinics/clinic_india/doctors
-```
-
-Full API smoke via curl: `npm run e2e:curl` (server must be running; uses a freshly minted patient token).
+Full API smoke via curl: `npm run e2e:curl -- http://localhost:3000 <PATIENT_JWT>` (or set `PATIENT_TOKEN`).
 
 ### Auth layer scope
 
-Auth is part of the platform architecture. Current implementation verifies JWT on all protected routes, with tokens typically generated via `npm run mint-jwt` for manual testing.
-
-Auth layer expansion (next checkpoints):
-- add `POST /auth/signup` and `POST /auth/login` for clinic-scoped credentials
-- move Postman/manual flow to login-issued tokens
-- keep tenant isolation unchanged (`clinicId` in JWT must match route clinic)
-
-Status: current JWT verification is implemented; login/signup endpoints are queued in upcoming checkpoints.
+Auth is part of the platform architecture. Current implementation verifies JWT on all protected routes and supports credential-based token issuance via `POST /auth/signup` and `POST /auth/login`.
 
 ## Multi-tenancy
 

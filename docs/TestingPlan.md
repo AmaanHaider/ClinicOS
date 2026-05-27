@@ -19,8 +19,7 @@ Do not fake the unique index or transaction behavior in core booking tests. The 
 | OpenAPI 3 YAML | `openapi/openapi.yaml` |
 | Swagger UI | `http://localhost:3000/api-docs` (when server running) |
 | Auth endpoints | `POST /auth/signup`, `POST /auth/login` |
-| JWT helper | `npm run mint-jwt` |
-| Curl E2E | `npm run e2e:curl` or `./scripts/e2e-curl.sh http://localhost:3000 $(npm run mint-jwt --silent)` |
+| Curl E2E | `npm run e2e:curl -- http://localhost:3000 <PATIENT_JWT>` or `PATIENT_TOKEN=<jwt> ./scripts/e2e-curl.sh` |
 
 Use **`npm run e2e:curl`** as the manual regression checklist after seed.
 

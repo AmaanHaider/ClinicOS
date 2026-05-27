@@ -100,4 +100,34 @@ describe.sequential("appointment transition concurrency", { timeout: 120000 }, (
     });
     expect(activeAtB).toBe(1);
   });
+
+  it("allows only one concurrent reschedule on the same appointment", async () => {
+    fixture = await createBookingFixture();
+    const slotA = await nthAvailableSlot(fixture.clinic._id, fixture.doctor._id, fixture.consult._id, fixture.monday, 0);
+    const slotB = await nthAvailableSlot(fixture.clinic._id, fixture.doctor._id, fixture.consult._id, fixture.monday, 1);
+
+    const { res: bookRes } = await bookPendingAppointment(app, fixture, { slot: slotA });
+    await request(app).patch(`/appointments/${bookRes.body._id}/confirm`).set(authHeaders(fixture.clinic._id));
+
+    const id = bookRes.body._id;
+    const results = await Promise.all([
+      request(app).patch(`/appointments/${id}`).set(authHeaders(fixture.clinic._id)).send({ newSlotStart: slotB.start }),
+      request(app).patch(`/appointments/${id}`).set(authHeaders(fixture.clinic._id)).send({ newSlotStart: slotB.start })
+    ]);
+
+    const ok = results.filter((r) => r.status === 200);
+    const conflicts = results.filter((r) => r.status !== 200);
+    expect(ok).toHaveLength(1);
+    expect(conflicts).toHaveLength(1);
+    expect([400, 409]).toContain(conflicts[0].status);
+
+    expect(await AppointmentEvent.countDocuments({ appointmentId: id, eventType: "rescheduled" })).toBe(1);
+    expect(await SlotReservation.countDocuments({ appointmentId: id, status: { $in: ["held", "confirmed"] } })).toBe(1);
+    expect(await SlotReservation.countDocuments({
+      clinicId: fixture.clinic._id,
+      doctorId: fixture.doctor._id,
+      slotStart: new Date(slotB.start),
+      status: { $in: ["held", "confirmed"] }
+    })).toBe(1);
+  });
 });
