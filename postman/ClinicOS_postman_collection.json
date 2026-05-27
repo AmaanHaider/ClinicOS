@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "clinicos-collection",
     "name": "ClinicOS",
-    "description": "Full ClinicOS API collection — every route in `src/routes/index.js`.\n\n**Setup:** `docker compose up -d` → `npm run setup:indexes` → `npm run seed` → `npm run dev`\n\n**Quick demo:** Run folder `1 — Public & auth` once, then `5 — Appointments (happy path)`.\n\n**Concurrency:** use `npm test -- tests/booking.concurrency.test.js` (not in Postman).\n\nTokens: `patientToken`, `staffToken`. IDs auto-saved from list/create requests.",
+    "description": "All ClinicOS API calls in plain English.\n\n**Start here:** folder \"1 — Setup and login\" (run top to bottom once).\n\n**Book a visit:** \"4 — Find open slots\" then \"5 — Book and manage appointments\".\n\n**Double-booking test:** folder \"7 — Two patients, same slot\".\n\nSetup: docker compose up -d → npm run setup:indexes → npm run seed → npm run dev",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -25,10 +25,10 @@
   ],
   "item": [
     {
-      "name": "1 — Public & auth",
+      "name": "1 — Setup and login",
       "item": [
         {
-          "name": "GET /health",
+          "name": "Check server is running",
           "request": {
             "method": "GET",
             "header": [],
@@ -36,7 +36,7 @@
           }
         },
         {
-          "name": "POST /clinics",
+          "name": "Create a new clinic",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -59,7 +59,7 @@
           }]
         },
         {
-          "name": "POST /auth/signup — patient",
+          "name": "Sign up as patient",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -82,7 +82,7 @@
           }]
         },
         {
-          "name": "POST /auth/signup — staff",
+          "name": "Sign up as staff",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -105,7 +105,7 @@
           }]
         },
         {
-          "name": "POST /auth/login — patient",
+          "name": "Log in as patient",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -127,7 +127,7 @@
           }]
         },
         {
-          "name": "POST /auth/login — staff",
+          "name": "Log in as staff",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -151,10 +151,10 @@
       ]
     },
     {
-      "name": "2 — Doctors & appointment types",
+      "name": "2 — Doctors and visit types",
       "item": [
         {
-          "name": "GET /clinics/:clinicId/doctors",
+          "name": "List all doctors",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
@@ -174,7 +174,7 @@
           }]
         },
         {
-          "name": "POST /clinics/:clinicId/doctors",
+          "name": "Add a new doctor",
           "request": {
             "method": "POST",
             "header": [
@@ -200,7 +200,7 @@
           }]
         },
         {
-          "name": "GET /clinics/:clinicId/appointment-types",
+          "name": "List visit types",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
@@ -219,7 +219,7 @@
           }]
         },
         {
-          "name": "POST /clinics/:clinicId/appointment-types",
+          "name": "Add a visit type",
           "request": {
             "method": "POST",
             "header": [
@@ -245,7 +245,7 @@
           }]
         },
         {
-          "name": "PATCH /appointment-types/:id",
+          "name": "Update a visit type",
           "request": {
             "method": "PATCH",
             "header": [
@@ -262,10 +262,10 @@
       ]
     },
     {
-      "name": "3 — Availability & exceptions",
+      "name": "3 — Doctor schedule and time off",
       "item": [
         {
-          "name": "GET /doctors/:id/availability",
+          "name": "View doctor weekly hours",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
@@ -273,7 +273,7 @@
           }
         },
         {
-          "name": "PUT /doctors/:id/availability",
+          "name": "Set doctor weekly hours",
           "request": {
             "method": "PUT",
             "header": [
@@ -288,7 +288,7 @@
           }
         },
         {
-          "name": "POST /doctors/:id/exceptions (block)",
+          "name": "Block a day off",
           "request": {
             "method": "POST",
             "header": [
@@ -303,7 +303,7 @@
           }
         },
         {
-          "name": "POST /doctors/:id/exceptions (override)",
+          "name": "Change hours for one day",
           "request": {
             "method": "POST",
             "header": [
@@ -318,7 +318,7 @@
           }
         },
         {
-          "name": "DELETE /doctors/:id/exceptions/:date",
+          "name": "Remove a day exception",
           "request": {
             "method": "DELETE",
             "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
@@ -326,7 +326,19 @@
           }
         },
         {
-          "name": "POST /doctors/:id/availability/validate",
+          "name": "Preview schedule changes (dry run)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proposedTemplate\": {\n    \"MON\": [{\"start\": \"09:00\", \"end\": \"12:00\"}],\n    \"TUE\": [{\"start\": \"10:00\", \"end\": \"17:00\"}],\n    \"WED\": [{\"start\": \"09:00\", \"end\": \"13:00\"}],\n    \"THU\": [{\"start\": \"10:00\", \"end\": \"17:00\"}],\n    \"FRI\": [{\"start\": \"09:00\", \"end\": \"13:00\"}],\n    \"SAT\": [],\n    \"SUN\": []\n  },\n  \"dateRange\": { \"from\": \"{{slotsFrom}}\", \"to\": \"{{slotsTo}}\" }\n}"
+            },
+            "url": "{{baseUrl}}/doctors/{{doctorId}}/availability/validate"
+          },
           "event": [{
             "listen": "prerequest",
             "script": {
@@ -340,27 +352,15 @@
               ],
               "type": "text/javascript"
             }
-          }],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{staffToken}}" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"proposedTemplate\": {\n    \"MON\": [{\"start\": \"09:00\", \"end\": \"12:00\"}],\n    \"TUE\": [{\"start\": \"10:00\", \"end\": \"17:00\"}],\n    \"WED\": [{\"start\": \"09:00\", \"end\": \"13:00\"}],\n    \"THU\": [{\"start\": \"10:00\", \"end\": \"17:00\"}],\n    \"FRI\": [{\"start\": \"09:00\", \"end\": \"13:00\"}],\n    \"SAT\": [],\n    \"SUN\": []\n  },\n  \"dateRange\": { \"from\": \"{{slotsFrom}}\", \"to\": \"{{slotsTo}}\" }\n}"
-            },
-            "url": "{{baseUrl}}/doctors/{{doctorId}}/availability/validate"
-          }
+          }]
         }
       ]
     },
     {
-      "name": "4 — Slots",
+      "name": "4 — Find open slots",
       "item": [
         {
-          "name": "GET /slots",
+          "name": "Get available time slots",
           "event": [
             {
               "listen": "prerequest",
@@ -408,11 +408,11 @@
       ]
     },
     {
-      "name": "5 — Appointments (happy path)",
-      "description": "Run folder 4 — Slots first (or run GET /slots here). Reschedule needs `newSlotStart` ≠ `slotStart`.",
+      "name": "5 — Book and manage appointments",
+      "description": "Run \"Get available time slots\" first. Reschedule needs a different time than the one you booked.",
       "item": [
         {
-          "name": "POST /appointments",
+          "name": "Book appointment (5 min hold)",
           "request": {
             "method": "POST",
             "header": [
@@ -437,7 +437,7 @@
           }]
         },
         {
-          "name": "GET /appointments/:id",
+          "name": "View appointment details",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
@@ -445,7 +445,7 @@
           }
         },
         {
-          "name": "PATCH /appointments/:id/confirm",
+          "name": "Confirm appointment",
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
@@ -453,7 +453,7 @@
           }
         },
         {
-          "name": "PATCH /appointments/:id (reschedule)",
+          "name": "Reschedule to another time",
           "request": {
             "method": "PATCH",
             "header": [
@@ -468,7 +468,7 @@
           }
         },
         {
-          "name": "GET /appointments/:id/history",
+          "name": "View appointment history",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
@@ -476,7 +476,7 @@
           }
         },
         {
-          "name": "GET /clinics/:clinicId/appointments",
+          "name": "List appointments for a patient (staff)",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
@@ -489,25 +489,25 @@
           }
         },
         {
-          "name": "PATCH /appointments/:id/noshow",
+          "name": "Mark as no-show (staff)",
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
             "url": "{{baseUrl}}/appointments/{{appointmentId}}/noshow"
           },
-          "description": "Requires a **past** confirmed appointment. On a future slot expect 403/400/409."
+          "description": "Only works for past appointments. Future visits may return an error."
         },
         {
-          "name": "PATCH /appointments/:id/complete",
+          "name": "Mark as completed (staff)",
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
             "url": "{{baseUrl}}/appointments/{{appointmentId}}/complete"
           },
-          "description": "Requires a **past** confirmed appointment. On a future slot expect 403/400/409."
+          "description": "Only works for past appointments. Future visits may return an error."
         },
         {
-          "name": "DELETE /appointments/:id",
+          "name": "Cancel appointment",
           "request": {
             "method": "DELETE",
             "header": [
@@ -525,10 +525,10 @@
     },
     {
       "name": "6 — Waitlist",
-      "description": "Join only works when the target day has no free slots. Block `exceptionDate` first, or use a fully booked day.",
+      "description": "Join waitlist only when that day has no open slots. Run \"Block a day off\" first, or pick a fully booked day.",
       "item": [
         {
-          "name": "POST /waitlist",
+          "name": "Join waitlist",
           "request": {
             "method": "POST",
             "header": [
@@ -554,7 +554,7 @@
           }]
         },
         {
-          "name": "GET /doctors/:id/waitlist",
+          "name": "View doctor waitlist (staff)",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
@@ -562,16 +562,16 @@
           }
         },
         {
-          "name": "POST /waitlist/:id/accept",
+          "name": "Accept waitlist offer",
           "request": {
             "method": "POST",
             "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
             "url": "{{baseUrl}}/waitlist/{{waitlistId}}/accept"
           },
-          "description": "Only works after cancel creates an offer for this patient. Expect 403/404/410 if no active offer."
+          "description": "Works after a slot opens and you get an offer (e.g. someone cancels)."
         },
         {
-          "name": "DELETE /waitlist/:id",
+          "name": "Leave waitlist",
           "request": {
             "method": "DELETE",
             "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
@@ -581,11 +581,11 @@
       ]
     },
     {
-      "name": "7 — Concurrency demo (manual)",
-      "description": "Duplicate `POST /appointments` below: same `slotStart`, different `idempotencyKey` + `patientId`. Send both at once. Expect one 201, one 409 SLOT_TAKEN. Or run: npm test -- tests/booking.concurrency.test.js",
+      "name": "7 — Two patients, same slot",
+      "description": "Send both requests at the same time. One should succeed (201), the other should fail (409 slot taken). Or run: npm test -- tests/booking.concurrency.test.js",
       "item": [
         {
-          "name": "POST /appointments (race A)",
+          "name": "Book slot — patient A",
           "request": {
             "method": "POST",
             "header": [
@@ -600,7 +600,7 @@
           }
         },
         {
-          "name": "POST /appointments (race B)",
+          "name": "Book slot — patient B",
           "request": {
             "method": "POST",
             "header": [
