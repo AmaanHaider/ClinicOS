@@ -85,6 +85,7 @@ describe.sequential("POST /appointments", { timeout: 60000 }, () => {
         idempotencyKey: `idem-${Date.now()}-b`
       });
     expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe("SLOT_TAKEN");
     expect(second.body.error.message).toMatch(/taken/i);
   });
 

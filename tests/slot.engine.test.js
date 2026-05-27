@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DateTime } from "luxon";
-import { computeAvailableSlots } from "../src/services/slot.engine.js";
+import { computeAvailableSlots, reservationBlocksInterval } from "../src/services/slot.engine.js";
 
 const mondayTemplate = {
   MON: [{ start: "09:00", end: "10:00" }],
@@ -125,6 +125,47 @@ describe("slot engine", () => {
       now: now.toJSDate()
     });
     expect(localStarts(slots)).toEqual(["09:30", "09:45"]);
+  });
+
+  it("matches naive overlap scan for many reservations", () => {
+    const template = wideMonday;
+    const reservations = [];
+    const base = DateTime.fromISO("2026-06-01T09:00:00", { zone: "Asia/Kolkata" }).toUTC();
+    for (let i = 0; i < 40; i += 1) {
+      const start = base.plus({ minutes: i * 15 });
+      reservations.push({
+        slotStart: start.toJSDate(),
+        slotEnd: start.plus({ minutes: 30 }).toJSDate(),
+        status: "confirmed"
+      });
+    }
+
+    const optimised = computeAvailableSlots({
+      template,
+      reservations,
+      timezone: "Asia/Kolkata",
+      durationMinutes: 15,
+      from: "2026-06-01",
+      to: "2026-06-01",
+      now: new Date("2026-05-01T00:00:00Z")
+    });
+
+    const naive = [];
+    const exceptionsByDate = new Map();
+    const nowDt = DateTime.fromJSDate(new Date("2026-05-01T00:00:00Z")).toUTC();
+    const windowStart = DateTime.fromISO("2026-06-01T09:00:00", { zone: "Asia/Kolkata" }).toUTC();
+    const windowEnd = DateTime.fromISO("2026-06-01T17:00:00", { zone: "Asia/Kolkata" }).toUTC();
+    let cursor = windowStart;
+    while (cursor.plus({ minutes: 15 }) <= windowEnd) {
+      const end = cursor.plus({ minutes: 15 });
+      const startMs = cursor.toMillis();
+      const endMs = end.toMillis();
+      const conflict = reservations.some((r) => reservationBlocksInterval(r, startMs, endMs));
+      if (!conflict && cursor >= nowDt) naive.push(cursor.toISO());
+      cursor = cursor.plus({ minutes: 15 });
+    }
+
+    expect(optimised.map((s) => s.start)).toEqual(naive);
   });
 
   it("uses Luxon for DST boundaries in Europe/London", () => {

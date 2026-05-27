@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { Appointment, AppointmentType, Clinic, SlotReservation } from "../models/index.js";
-import { BadRequestError, ConflictError, GoneError, NotFoundError } from "../utils/errors.js";
+import { BadRequestError, ConflictError, ErrorCodes, GoneError, NotFoundError } from "../utils/errors.js";
 import { parseUtcDateTime } from "../utils/timezone.js";
 import { withTransaction } from "../utils/transactions.js";
 import { requireDoctor } from "./doctor.service.js";
@@ -65,7 +65,9 @@ export async function createAppointment(clinicId, data, actor, retry = true) {
       const expired = await expireHoldBySlot({ clinicId, doctorId: doctor._id, slotStart, actor });
       if (expired) return createAppointment(clinicId, data, actor, false);
     }
-    if (err?.code === 11000) throw new ConflictError("This slot has just been taken. Please select another.", { slotStart });
+    if (err?.code === 11000) {
+      throw new ConflictError("This slot has just been taken. Please select another.", { slotStart }, ErrorCodes.SLOT_TAKEN);
+    }
     throw err;
   }
 }
@@ -126,7 +128,9 @@ export async function createConfirmedAppointment(clinicId, data, actor, session)
   try {
     return await withTransaction(run);
   } catch (err) {
-    if (err?.code === 11000) throw new ConflictError("This slot has just been taken. Please select another.", { slotStart });
+    if (err?.code === 11000) {
+      throw new ConflictError("This slot has just been taken. Please select another.", { slotStart }, ErrorCodes.SLOT_TAKEN);
+    }
     throw err;
   }
 }
@@ -135,12 +139,14 @@ export async function confirmAppointment(clinicId, id, actor) {
   const now = new Date();
   const existing = await Appointment.findOne({ _id: id, clinicId });
   if (!existing) throw new NotFoundError("Appointment not found");
-  if (existing.status !== "pending") throw new ConflictError("Appointment is not pending");
+  if (existing.status !== "pending") {
+    throw new ConflictError("Appointment is not pending", undefined, ErrorCodes.VERSION_CONFLICT);
+  }
 
   const reservation = await SlotReservation.findOne({ _id: existing.currentReservationId, clinicId });
   if (!reservation || reservation.status !== "held" || reservation.holdExpiresAt <= now) {
     await expirePendingHold({ clinicId, appointmentId: id, reservationId: reservation?._id, actor });
-    throw new GoneError("Your booking hold has expired. Please start again.");
+    throw new GoneError("Your booking hold has expired. Please start again.", undefined, ErrorCodes.HOLD_EXPIRED);
   }
 
   try {
@@ -150,14 +156,18 @@ export async function confirmAppointment(clinicId, id, actor) {
         { $set: { status: "confirmed" }, $inc: { version: 1 } },
         { new: true, session }
       );
-      if (!appointment) throw new ConflictError("Appointment was already updated");
+      if (!appointment) {
+        throw new ConflictError("Appointment was already updated", undefined, ErrorCodes.VERSION_CONFLICT);
+      }
 
       const confirmedReservation = await SlotReservation.findOneAndUpdate(
         { _id: reservation._id, clinicId, status: "held", holdExpiresAt: { $gt: now } },
         { $set: { status: "confirmed" }, $unset: { holdExpiresAt: 1 } },
         { new: true, session }
       );
-      if (!confirmedReservation) throw new GoneError("Your booking hold has expired. Please start again.");
+      if (!confirmedReservation) {
+        throw new GoneError("Your booking hold has expired. Please start again.", undefined, ErrorCodes.HOLD_EXPIRED);
+      }
 
       await writeEvent({ appointment, eventType: "confirmed", actor, previousState: "pending", newState: "confirmed", session });
       return appointment;
@@ -176,7 +186,7 @@ export async function cancelAppointment(clinicId, id, data, actor) {
     if (!existing) throw new NotFoundError("Appointment not found");
     if (!["pending", "confirmed"].includes(existing.status)) {
       if (["cancelled", "completed", "no_show", "expired"].includes(existing.status)) {
-        throw new ConflictError("Appointment was already updated");
+        throw new ConflictError("Appointment was already updated", undefined, ErrorCodes.VERSION_CONFLICT);
       }
       throw new BadRequestError("Appointment cannot be cancelled");
     }
@@ -190,7 +200,9 @@ export async function cancelAppointment(clinicId, id, data, actor) {
       },
       { new: true, session }
     );
-    if (!updated) throw new ConflictError("Appointment was already updated");
+    if (!updated) {
+      throw new ConflictError("Appointment was already updated", undefined, ErrorCodes.VERSION_CONFLICT);
+    }
 
     await SlotReservation.updateOne(
       { _id: existing.currentReservationId, clinicId, status: { $in: ["held", "confirmed"] } },
@@ -241,7 +253,9 @@ export async function rescheduleAppointment(clinicId, id, data, actor) {
         { $inc: { version: 1 } },
         { new: true, session }
       );
-      if (!claimed) throw new ConflictError("Appointment was already updated");
+      if (!claimed) {
+        throw new ConflictError("Appointment was already updated", undefined, ErrorCodes.VERSION_CONFLICT);
+      }
 
       const [reservation] = await SlotReservation.create([{
         clinicId,
@@ -288,7 +302,9 @@ export async function rescheduleAppointment(clinicId, id, data, actor) {
       return appointment;
     });
   } catch (err) {
-    if (err?.code === 11000) throw new ConflictError("New slot is taken");
+    if (err?.code === 11000) {
+      throw new ConflictError("New slot is taken", undefined, ErrorCodes.SLOT_TAKEN);
+    }
     throw err;
   }
 }
@@ -301,7 +317,7 @@ export async function markOutcome(clinicId, id, outcome, actor) {
     if (!existing) throw new NotFoundError("Appointment not found");
     if (existing.status !== "confirmed") {
       if (["no_show", "completed", "cancelled", "expired"].includes(existing.status)) {
-        throw new ConflictError("Appointment was already updated");
+        throw new ConflictError("Appointment was already updated", undefined, ErrorCodes.VERSION_CONFLICT);
       }
       throw new BadRequestError("Only confirmed appointments can be updated");
     }
@@ -315,7 +331,7 @@ export async function markOutcome(clinicId, id, outcome, actor) {
     if (!appointment) {
       const current = await Appointment.findOne({ _id: id, clinicId }).session(session);
       if (current?.currentSlotStart > now) throw new BadRequestError("Appointment has not happened yet");
-      throw new ConflictError("Appointment was already updated");
+      throw new ConflictError("Appointment was already updated", undefined, ErrorCodes.VERSION_CONFLICT);
     }
 
     await writeEvent({ appointment, eventType: outcome, actor, previousState: "confirmed", newState: outcome, session });

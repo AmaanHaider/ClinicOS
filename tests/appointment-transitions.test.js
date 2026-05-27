@@ -67,6 +67,7 @@ describe.sequential("appointment transitions", { timeout: 60000 }, () => {
       .set(authHeaders(fixture.clinic._id));
 
     expect(confirmRes.status).toBe(410);
+    expect(confirmRes.body.error.code).toBe("HOLD_EXPIRED");
 
     const appointment = await Appointment.findById(bookRes.body._id);
     expect(appointment.status).toBe("expired");

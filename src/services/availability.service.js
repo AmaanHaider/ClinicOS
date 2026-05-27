@@ -51,11 +51,14 @@ export async function deleteException(clinicId, doctorId, date) {
 
 function windowsForDate(date, proposedTemplate, exceptionsByDate, timezone) {
   const exception = exceptionsByDate[date];
-  if (exception?.type === "block") return [];
-  if (exception?.type === "override") return exception.windows || [];
   const weekday = DateTime.fromISO(date, { zone: timezone }).weekday;
   const day = days[weekday - 1];
-  return proposedTemplate[day] || [];
+  const base = proposedTemplate[day] || [];
+  if (!exception) return base;
+  if (exception.type === "block") return [];
+  if (exception.type === "override") return exception.windows || [];
+  if (exception.type === "additional") return [...base, ...(exception.windows || [])];
+  return base;
 }
 
 function appointmentFitsWindows(appt, windows, timezone) {

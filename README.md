@@ -582,11 +582,11 @@ Double-booking is prevented by **three cooperating layers**:
 
 3. **Partial unique index** — `{ clinicId, doctorId, slotStart }` unique where `status ∈ { held, confirmed }`. Two concurrent inserts for the same slot produce `E11000` on the loser; the API returns **409 Conflict** with message *"This slot has just been taken."*
 
-**Loser behaviour:** HTTP 409 with structured `{ error: { code, message } }`. Clients should refresh `/slots` and pick another time.
+**Loser behaviour:** HTTP 409 with `code: SLOT_TAKEN` (or `VERSION_CONFLICT` on reschedule races). Clients should refresh `/slots` and pick another time.
 
 **Pending hold expiry without cron:** `holdLifecycle.service.js` expires stale holds lazily when:
 - a new booking collides with an expired hold (retry path),
-- confirm is attempted after TTL (410 + cleanup),
+- confirm is attempted after TTL (`HOLD_EXPIRED` / 410 + cleanup),
 - `GET /slots` runs a bounded sweep (50 rows per request).
 
 **Reschedule races:** Optimistic locking via `appointment.version` — claim with `findOneAndUpdate` inside a transaction; concurrent updates get 409.
@@ -616,6 +616,8 @@ SQL can use triggers or temporal tables. Here, `appointments` mutate while `appo
 
 ## Error and HTTP matrix
 
+Responses use `{ error: { code, message, details? } }`. Codes are defined in `src/utils/errors.js` (`ErrorCodes`).
+
 | HTTP | Code | When |
 |------|------|------|
 | 200 | — | Success; idempotent booking replay |
@@ -624,9 +626,16 @@ SQL can use triggers or temporal tables. Here, `appointments` mutate while `appo
 | 401 | `UNAUTHORIZED` | Missing or invalid JWT |
 | 403 | `FORBIDDEN` | Clinic mismatch, waitlist ownership |
 | 404 | `NOT_FOUND` | Resource not found in tenant |
-| 409 | `CONFLICT` | Slot taken, version race, duplicate waitlist |
-| 410 | `GONE` | Hold or waitlist offer expired |
+| 409 | `CONFLICT` | Generic conflict (e.g. duplicate waitlist) |
+| 409 | `SLOT_TAKEN` | Active reservation or unique index on `slotStart` |
+| 409 | `VERSION_CONFLICT` | Optimistic lock lost (confirm, cancel, reschedule) |
+| 409 | `DUPLICATE_KEY` | Unhandled MongoDB `E11000` (middleware fallback) |
+| 410 | `GONE` | Generic gone |
+| 410 | `HOLD_EXPIRED` | Pending hold past TTL on confirm |
+| 410 | `OFFER_EXPIRED` | Waitlist slot offer past expiry |
 | 500 | `INTERNAL_SERVER_ERROR` | Unhandled error |
+
+**Client hints:** On `SLOT_TAKEN`, refresh `GET /slots` and retry. On `HOLD_EXPIRED`, start a new booking. On `VERSION_CONFLICT`, re-fetch the appointment and retry the transition.
 
 ---
 

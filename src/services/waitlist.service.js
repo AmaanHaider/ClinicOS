@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { SlotOffer, WaitlistEntry } from "../models/index.js";
-import { BadRequestError, ConflictError, ForbiddenError, GoneError, NotFoundError } from "../utils/errors.js";
+import { BadRequestError, ConflictError, ErrorCodes, ForbiddenError, GoneError, NotFoundError } from "../utils/errors.js";
 import { withTransaction } from "../utils/transactions.js";
 import { env } from "../config/env.js";
 import { getSlots } from "./slot.service.js";
@@ -152,7 +152,7 @@ export async function acceptOffer(clinicId, waitlistEntryId, actor) {
   const now = new Date();
   if (offer.offerExpiresAt <= now) {
     await expireOfferAndAdvanceQueue({ entry, offer });
-    throw new GoneError("Offer has expired");
+    throw new GoneError("Offer has expired", undefined, ErrorCodes.OFFER_EXPIRED);
   }
 
   const ctx = slotContext(entry, offer);
@@ -179,7 +179,7 @@ export async function acceptOffer(clinicId, waitlistEntryId, actor) {
   } catch (err) {
     if (err?.code === 11000 || err instanceof ConflictError) {
       await supersedeOfferAndAdvanceQueue({ entry, offer });
-      throw new ConflictError("This slot has just been taken. Please select another.");
+      throw new ConflictError("This slot has just been taken. Please select another.", undefined, ErrorCodes.SLOT_TAKEN);
     }
     throw err;
   }

@@ -11,7 +11,8 @@ import {
   cleanupTwoClinicFixture,
   staffHeaders
 } from "./helpers/fixtures.js";
-import { AppointmentEvent } from "../src/models/index.js";
+import { Appointment, AppointmentEvent } from "../src/models/index.js";
+import { deriveAppointmentFromEvents, reconcileAppointment } from "../src/services/event.service.js";
 
 const app = createApp();
 
@@ -69,6 +70,30 @@ describe.sequential("appointment events", { timeout: 120000 }, () => {
       .get(`/appointments/${bookRes.body._id}/history`)
       .set(staffHeaders(two.clinicB._id));
     expect(history.status).toBe(404);
+  });
+
+  it("replays lifecycle events to match final appointment state", async () => {
+    fixture = await createBookingFixture();
+    const { res: bookRes } = await bookPendingAppointment(app, fixture);
+    const appointmentId = bookRes.body._id;
+
+    await request(app)
+      .patch(`/appointments/${appointmentId}/confirm`)
+      .set(authHeaders(fixture.clinic._id));
+
+    await request(app)
+      .delete(`/appointments/${appointmentId}`)
+      .set(authHeaders(fixture.clinic._id))
+      .send({ cancelledBy: "patient", reason: "test" });
+
+    const events = await AppointmentEvent.find({ appointmentId }).sort({ timestamp: 1 }).lean();
+    const derived = deriveAppointmentFromEvents(events);
+    expect(derived.status).toBe("cancelled");
+
+    const appointment = await Appointment.findById(appointmentId).lean();
+    const reconciliation = await reconcileAppointment(fixture.clinic._id, appointmentId);
+    expect(reconciliation.matches).toBe(true);
+    expect(reconciliation.derived.status).toBe(appointment.status);
   });
 
   it("increments event count on cancel", async () => {

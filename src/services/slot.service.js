@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { AppointmentType, AvailabilityException, AvailabilityTemplate, Clinic, SlotReservation } from "../models/index.js";
-import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.js";
+import { BadRequestError, ConflictError, ErrorCodes, NotFoundError } from "../utils/errors.js";
 import { parseDate } from "../utils/timezone.js";
 import { env } from "../config/env.js";
 import { computeAvailableSlots } from "./slot.engine.js";
@@ -27,7 +27,7 @@ export async function assertNoActiveReservationOverlap(clinicId, { doctorId, slo
 
   const conflicting = await SlotReservation.findOne(filter).lean();
   if (conflicting) {
-    throw new ConflictError("This slot has just been taken. Please select another.", { slotStart: start });
+    throw new ConflictError("This slot has just been taken. Please select another.", { slotStart: start }, ErrorCodes.SLOT_TAKEN);
   }
 }
 

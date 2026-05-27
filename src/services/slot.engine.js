@@ -12,16 +12,30 @@ function effectiveWindowsForDate(template, exceptionsByDate, date, timezone) {
   return base;
 }
 
-function reservationBlocksSlot(reservation, start, end) {
-  const rStart = DateTime.fromJSDate(new Date(reservation.slotStart));
-  const rEnd = DateTime.fromJSDate(new Date(reservation.slotEnd));
-  return rStart < end && rEnd > start;
+function normalizeReservations(reservations) {
+  return reservations
+    .map((reservation) => ({
+      startMs: new Date(reservation.slotStart).getTime(),
+      endMs: new Date(reservation.slotEnd).getTime()
+    }))
+    .sort((a, b) => a.startMs - b.startMs);
+}
+
+function hasOverlap(sortedReservations, startIndex, startMs, endMs) {
+  for (let i = startIndex; i < sortedReservations.length; i += 1) {
+    const reservation = sortedReservations[i];
+    if (reservation.startMs >= endMs) break;
+    if (reservation.startMs < endMs && reservation.endMs > startMs) return true;
+  }
+  return false;
 }
 
 export function computeAvailableSlots({ template, exceptions = [], reservations = [], timezone, durationMinutes, from, to, now = new Date() }) {
   const exceptionsByDate = new Map(exceptions.map((ex) => [ex.date, ex]));
+  const sortedReservations = normalizeReservations(reservations);
   const nowDt = DateTime.fromJSDate(now).toUTC();
   const slots = [];
+  let reservationIndex = 0;
 
   for (const date of daysInclusive(from, to, timezone)) {
     const windows = effectiveWindowsForDate(template, exceptionsByDate, date, timezone);
@@ -31,7 +45,17 @@ export function computeAvailableSlots({ template, exceptions = [], reservations 
       let cursor = windowStart;
       while (cursor.plus({ minutes: durationMinutes }) <= windowEnd) {
         const end = cursor.plus({ minutes: durationMinutes });
-        const activeConflict = reservations.some((reservation) => reservationBlocksSlot(reservation, cursor, end));
+        const startMs = cursor.toMillis();
+        const endMs = end.toMillis();
+
+        while (
+          reservationIndex < sortedReservations.length
+          && sortedReservations[reservationIndex].endMs <= startMs
+        ) {
+          reservationIndex += 1;
+        }
+
+        const activeConflict = hasOverlap(sortedReservations, reservationIndex, startMs, endMs);
         if (!activeConflict && cursor >= nowDt) {
           slots.push({
             start: cursor.toISO(),
@@ -47,3 +71,9 @@ export function computeAvailableSlots({ template, exceptions = [], reservations 
   return slots;
 }
 
+// Exported for tests comparing naive vs optimised overlap logic.
+export function reservationBlocksInterval(reservation, startMs, endMs) {
+  const start = new Date(reservation.slotStart).getTime();
+  const end = new Date(reservation.slotEnd).getTime();
+  return start < endMs && end > startMs;
+}
