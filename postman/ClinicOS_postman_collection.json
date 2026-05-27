@@ -1,0 +1,357 @@
+{
+    "info": {
+      "_postman_id": "clinicos-collection",
+      "name": "ClinicOS",
+      "description": "ClinicOS scheduling API.\n\n**Setup:** docker compose up -d → npm run setup:indexes → npm run seed → npm run dev\n\n**First run:** Execute folder `1 — Setup` in order (signup once, then login).\n\n**Demo flow:** Folder `2 — Happy path (patient)`.\n\nTokens are saved automatically to `patientToken` and `staffToken`.",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+      { "key": "baseUrl", "value": "http://localhost:3000" },
+      { "key": "clinicId", "value": "clinic_india" },
+      { "key": "patientEmail", "value": "patient@demo.local" },
+      { "key": "staffEmail", "value": "staff@demo.local" },
+      { "key": "password", "value": "password123" },
+      { "key": "patientToken", "value": "" },
+      { "key": "staffToken", "value": "" },
+      { "key": "doctorId", "value": "" },
+      { "key": "appointmentTypeId", "value": "" },
+      { "key": "slotStart", "value": "" },
+      { "key": "appointmentId", "value": "" },
+      { "key": "waitlistId", "value": "" },
+      { "key": "slotsFrom", "value": "" },
+      { "key": "slotsTo", "value": "" }
+    ],
+    "item": [
+      {
+        "name": "1 — Setup (run once)",
+        "item": [
+          {
+            "name": "Health",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{baseUrl}}/health"
+            }
+          },
+          {
+            "name": "Sign up — patient",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"{{password}}\",\n  \"name\": \"Demo Patient\",\n  \"role\": \"patient\"\n}"
+              },
+              "url": "{{baseUrl}}/auth/signup"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('patientToken', pm.response.json().accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          },
+          {
+            "name": "Sign up — staff",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"email\": \"{{staffEmail}}\",\n  \"password\": \"{{password}}\",\n  \"name\": \"Demo Staff\",\n  \"role\": \"clinic_staff\"\n}"
+              },
+              "url": "{{baseUrl}}/auth/signup"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('staffToken', pm.response.json().accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          },
+          {
+            "name": "Login — patient",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"{{password}}\"\n}"
+              },
+              "url": "{{baseUrl}}/auth/login"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('patientToken', pm.response.json().accessToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          },
+          {
+            "name": "Login — staff",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"email\": \"{{staffEmail}}\",\n  \"password\": \"{{password}}\"\n}"
+              },
+              "url": "{{baseUrl}}/auth/login"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('staffToken', pm.response.json().accessToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          }
+        ]
+      },
+      {
+        "name": "2 — Happy path (patient)",
+        "item": [
+          {
+            "name": "List doctors",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
+              "url": "{{baseUrl}}/clinics/{{clinicId}}/doctors"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json().data || [];",
+                  "const dr = data.find(d => (d.name || '').includes('Sharma')) || data[0];",
+                  "if (dr) pm.collectionVariables.set('doctorId', dr._id);",
+                  "pm.test('doctorId set', () => pm.expect(pm.collectionVariables.get('doctorId')).to.not.be.empty);"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          },
+          {
+            "name": "List appointment types",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
+              "url": "{{baseUrl}}/clinics/{{clinicId}}/appointment-types"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json().data || [];",
+                  "const t = data.find(x => x.name === 'General Consult') || data[0];",
+                  "if (t) pm.collectionVariables.set('appointmentTypeId', t._id);"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          },
+          {
+            "name": "Get available slots",
+            "event": [
+              {
+                "listen": "prerequest",
+                "script": {
+                  "exec": [
+                    "const from = new Date(); from.setDate(from.getDate() + 5);",
+                    "const to = new Date(); to.setDate(to.getDate() + 12);",
+                    "pm.collectionVariables.set('slotsFrom', from.toISOString().slice(0, 10));",
+                    "pm.collectionVariables.set('slotsTo', to.toISOString().slice(0, 10));"
+                  ],
+                  "type": "text/javascript"
+                }
+              },
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "const slots = pm.response.json().slots || [];",
+                    "pm.test('Has slots', () => pm.expect(slots.length).to.be.above(0));",
+                    "if (slots[0]) pm.collectionVariables.set('slotStart', slots[0].start);"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ],
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
+              "url": {
+                "raw": "{{baseUrl}}/slots?clinicId={{clinicId}}&doctorId={{doctorId}}&appointmentType={{appointmentTypeId}}&from={{slotsFrom}}&to={{slotsTo}}",
+                "host": ["{{baseUrl}}"],
+                "path": ["slots"],
+                "query": [
+                  { "key": "clinicId", "value": "{{clinicId}}" },
+                  { "key": "doctorId", "value": "{{doctorId}}" },
+                  { "key": "appointmentType", "value": "{{appointmentTypeId}}" },
+                  { "key": "from", "value": "{{slotsFrom}}" },
+                  { "key": "to", "value": "{{slotsTo}}" }
+                ]
+              }
+            }
+          },
+          {
+            "name": "Book appointment (pending hold)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Authorization", "value": "Bearer {{patientToken}}" },
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"doctorId\": \"{{doctorId}}\",\n  \"appointmentTypeId\": \"{{appointmentTypeId}}\",\n  \"slotStart\": \"{{slotStart}}\",\n  \"patientId\": \"demo_patient_1\",\n  \"idempotencyKey\": \"postman-{{$timestamp}}\",\n  \"patient\": { \"name\": \"Demo Patient\" }\n}"
+              },
+              "url": "{{baseUrl}}/appointments"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('appointmentId', pm.response.json()._id);"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          },
+          {
+            "name": "Confirm appointment",
+            "request": {
+              "method": "PATCH",
+              "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
+              "url": "{{baseUrl}}/appointments/{{appointmentId}}/confirm"
+            }
+          },
+          {
+            "name": "Get appointment",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
+              "url": "{{baseUrl}}/appointments/{{appointmentId}}"
+            }
+          },
+          {
+            "name": "Appointment history",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
+              "url": "{{baseUrl}}/appointments/{{appointmentId}}/history"
+            }
+          },
+          {
+            "name": "Cancel appointment",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                { "key": "Authorization", "value": "Bearer {{patientToken}}" },
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"cancelledBy\": \"patient\",\n  \"reason\": \"Postman demo cancel\"\n}"
+              },
+              "url": "{{baseUrl}}/appointments/{{appointmentId}}"
+            }
+          }
+        ]
+      },
+      {
+        "name": "3 — Staff extras",
+        "item": [
+          {
+            "name": "List appointments by patient",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
+              "url": "{{baseUrl}}/clinics/{{clinicId}}/appointments?patientId=demo_patient_1"
+            }
+          },
+          {
+            "name": "Validate availability (dry-run)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Authorization", "value": "Bearer {{staffToken}}" },
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"proposedTemplate\": {\n    \"MON\": [{\"start\": \"09:00\", \"end\": \"12:00\"}],\n    \"TUE\": [{\"start\": \"10:00\", \"end\": \"17:00\"}],\n    \"WED\": [{\"start\": \"09:00\", \"end\": \"13:00\"}],\n    \"THU\": [{\"start\": \"10:00\", \"end\": \"17:00\"}],\n    \"FRI\": [{\"start\": \"09:00\", \"end\": \"13:00\"}],\n    \"SAT\": [],\n    \"SUN\": []\n  },\n  \"dateRange\": { \"from\": \"{{slotsFrom}}\", \"to\": \"{{slotsTo}}\" }\n}"
+              },
+              "url": "{{baseUrl}}/doctors/{{doctorId}}/availability/validate"
+            }
+          }
+        ]
+      },
+      {
+        "name": "4 — Waitlist (manual steps)",
+        "description": "Waitlist join only works when the target day has **no** free slots. Fill the day first, then join. After a cancel, run accept as the patient who was offered.",
+        "item": [
+          {
+            "name": "Join waitlist",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Authorization", "value": "Bearer {{patientToken}}" },
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"doctorId\": \"{{doctorId}}\",\n  \"appointmentTypeId\": \"{{appointmentTypeId}}\",\n  \"targetDate\": \"{{slotsFrom}}\",\n  \"patientId\": \"waitlist_demo_patient\",\n  \"urgencyFlag\": false,\n  \"patient\": { \"name\": \"Waitlist Demo\" }\n}"
+              },
+              "url": "{{baseUrl}}/waitlist"
+            },
+            "event": [{
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('waitlistId', pm.response.json()._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }]
+          },
+          {
+            "name": "List doctor waitlist (staff)",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
+              "url": "{{baseUrl}}/doctors/{{doctorId}}/waitlist"
+            }
+          },
+          {
+            "name": "Accept waitlist offer (patient)",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Authorization", "value": "Bearer {{patientToken}}" }],
+              "url": "{{baseUrl}}/waitlist/{{waitlistId}}/accept"
+            }
+          }
+        ]
+      }
+    ]
+  }
