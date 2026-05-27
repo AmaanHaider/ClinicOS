@@ -67,6 +67,14 @@ describe.sequential("appointment transitions", { timeout: 60000 }, () => {
       .set(authHeaders(fixture.clinic._id));
 
     expect(confirmRes.status).toBe(410);
+
+    const appointment = await Appointment.findById(bookRes.body._id);
+    expect(appointment.status).toBe("expired");
+
+    const reservation = await SlotReservation.findById(bookRes.body.currentReservationId);
+    expect(reservation.status).toBe("expired");
+
+    expect(await AppointmentEvent.countDocuments({ appointmentId: bookRes.body._id, eventType: "expired" })).toBe(1);
   });
 
   it("cancels pending appointment and releases reservation", async () => {

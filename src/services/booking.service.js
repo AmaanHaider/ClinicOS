@@ -7,30 +7,8 @@ import { requireDoctor } from "./doctor.service.js";
 import { requireAppointmentType } from "./appointment-type.service.js";
 import { assertGeneratedSlot, assertNoActiveReservationOverlap } from "./slot.service.js";
 import { writeEvent } from "./event.service.js";
+import { expireHoldBySlot, expirePendingHold } from "./holdLifecycle.service.js";
 import { env } from "../config/env.js";
-
-const systemActor = { id: "system", role: "system", name: "System" };
-
-async function expireBlockingHold({ clinicId, doctorId, slotStart, actor = systemActor }) {
-  const now = new Date();
-  return withTransaction(async (session) => {
-    const expired = await SlotReservation.findOneAndUpdate(
-      { clinicId, doctorId, slotStart, status: "held", holdExpiresAt: { $lte: now } },
-      { $set: { status: "expired" } },
-      { new: true, session }
-    );
-    if (!expired) return false;
-    const appointment = await Appointment.findOneAndUpdate(
-      { _id: expired.appointmentId, clinicId, status: "pending" },
-      { $set: { status: "expired" }, $inc: { version: 1 } },
-      { new: true, session }
-    );
-    if (appointment) {
-      await writeEvent({ appointment, eventType: "expired", actor, previousState: "pending", newState: "expired", session });
-    }
-    return true;
-  });
-}
 
 export async function createAppointment(clinicId, data, actor, retry = true) {
   if (data.idempotencyKey) {
@@ -84,7 +62,7 @@ export async function createAppointment(clinicId, data, actor, retry = true) {
     return result;
   } catch (err) {
     if (err?.code === 11000 && retry) {
-      const expired = await expireBlockingHold({ clinicId, doctorId: doctor._id, slotStart, actor });
+      const expired = await expireHoldBySlot({ clinicId, doctorId: doctor._id, slotStart, actor });
       if (expired) return createAppointment(clinicId, data, actor, false);
     }
     if (err?.code === 11000) throw new ConflictError("This slot has just been taken. Please select another.", { slotStart });
@@ -155,33 +133,41 @@ export async function createConfirmedAppointment(clinicId, data, actor, session)
 
 export async function confirmAppointment(clinicId, id, actor) {
   const now = new Date();
-  return withTransaction(async (session) => {
-    const existing = await Appointment.findOne({ _id: id, clinicId }).session(session);
-    if (!existing) throw new NotFoundError("Appointment not found");
-    if (existing.status !== "pending") throw new ConflictError("Appointment is not pending");
+  const existing = await Appointment.findOne({ _id: id, clinicId });
+  if (!existing) throw new NotFoundError("Appointment not found");
+  if (existing.status !== "pending") throw new ConflictError("Appointment is not pending");
 
-    const reservation = await SlotReservation.findOne({ _id: existing.currentReservationId, clinicId }).session(session);
-    if (!reservation || reservation.status !== "held" || reservation.holdExpiresAt <= now) {
-      throw new GoneError("Your booking hold has expired. Please start again.");
+  const reservation = await SlotReservation.findOne({ _id: existing.currentReservationId, clinicId });
+  if (!reservation || reservation.status !== "held" || reservation.holdExpiresAt <= now) {
+    await expirePendingHold({ clinicId, appointmentId: id, reservationId: reservation?._id, actor });
+    throw new GoneError("Your booking hold has expired. Please start again.");
+  }
+
+  try {
+    return await withTransaction(async (session) => {
+      const appointment = await Appointment.findOneAndUpdate(
+        { _id: id, clinicId, status: "pending", version: existing.version },
+        { $set: { status: "confirmed" }, $inc: { version: 1 } },
+        { new: true, session }
+      );
+      if (!appointment) throw new ConflictError("Appointment was already updated");
+
+      const confirmedReservation = await SlotReservation.findOneAndUpdate(
+        { _id: reservation._id, clinicId, status: "held", holdExpiresAt: { $gt: now } },
+        { $set: { status: "confirmed" }, $unset: { holdExpiresAt: 1 } },
+        { new: true, session }
+      );
+      if (!confirmedReservation) throw new GoneError("Your booking hold has expired. Please start again.");
+
+      await writeEvent({ appointment, eventType: "confirmed", actor, previousState: "pending", newState: "confirmed", session });
+      return appointment;
+    });
+  } catch (err) {
+    if (err instanceof GoneError) {
+      await expirePendingHold({ clinicId, appointmentId: id, reservationId: reservation._id, actor });
     }
-
-    const appointment = await Appointment.findOneAndUpdate(
-      { _id: id, clinicId, status: "pending", version: existing.version },
-      { $set: { status: "confirmed" }, $inc: { version: 1 } },
-      { new: true, session }
-    );
-    if (!appointment) throw new ConflictError("Appointment was already updated");
-
-    const confirmedReservation = await SlotReservation.findOneAndUpdate(
-      { _id: reservation._id, clinicId, status: "held", holdExpiresAt: { $gt: now } },
-      { $set: { status: "confirmed" }, $unset: { holdExpiresAt: 1 } },
-      { new: true, session }
-    );
-    if (!confirmedReservation) throw new GoneError("Your booking hold has expired. Please start again.");
-
-    await writeEvent({ appointment, eventType: "confirmed", actor, previousState: "pending", newState: "confirmed", session });
-    return appointment;
-  });
+    throw err;
+  }
 }
 
 export async function cancelAppointment(clinicId, id, data, actor) {

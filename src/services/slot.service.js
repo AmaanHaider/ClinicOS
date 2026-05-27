@@ -5,6 +5,7 @@ import { parseDate } from "../utils/timezone.js";
 import { env } from "../config/env.js";
 import { computeAvailableSlots } from "./slot.engine.js";
 import { requireDoctor } from "./doctor.service.js";
+import { expireStaleHoldsInRange } from "./holdLifecycle.service.js";
 
 function activeReservationFilter(now = new Date()) {
   return {
@@ -54,6 +55,7 @@ export async function getSlots(clinicId, { doctorId, appointmentType, from, to }
 
   const rangeStart = fromDt.startOf("day").toJSDate();
   const rangeEnd = toDt.endOf("day").toJSDate();
+  await expireStaleHoldsInRange({ clinicId, doctorId, rangeStart, rangeEnd });
   const now = new Date();
   const reservations = await SlotReservation.find({
     clinicId,

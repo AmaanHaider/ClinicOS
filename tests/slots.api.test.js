@@ -10,7 +10,7 @@ import {
   createBookingFixture,
   staffHeaders
 } from "./helpers/fixtures.js";
-import { AvailabilityTemplate, SlotReservation } from "../src/models/index.js";
+import { AvailabilityTemplate, Appointment, SlotReservation } from "../src/models/index.js";
 import { env } from "../src/config/env.js";
 
 const app = createApp();
@@ -154,5 +154,11 @@ describe.sequential("GET /slots", { timeout: 120000 }, () => {
       })
       .set(authHeaders(fixture.clinic._id));
     expect(afterExpiry.body.slots.find((s) => s.start === slot.start)).toBeDefined();
+
+    const appointment = await Appointment.findById(bookRes.body._id);
+    expect(appointment.status).toBe("expired");
+
+    const reservation = await SlotReservation.findById(bookRes.body.currentReservationId);
+    expect(reservation.status).toBe("expired");
   });
 });
