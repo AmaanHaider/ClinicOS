@@ -6,15 +6,9 @@ info:
 
     ## Authentication
 
-    **Production** (`NODE_ENV=production`): `Authorization: Bearer <JWT>` only.
+    `Authorization: Bearer <JWT>`
 
     JWT claims: `sub` (actor id), `clinicId`, `role` (`patient` | `clinic_staff` | `system`), `name` (optional).
-
-    **Development / test**: when no Bearer token is sent, these headers are accepted:
-    - `x-clinic-id`
-    - `x-actor-id`
-    - `x-actor-role`
-    - `x-actor-name`
 
     URL paths containing `/clinics/{clinicId}` must match the token clinic or the API returns `403`.
   version: 1.0.0
@@ -27,6 +21,7 @@ servers:
 
 tags:
   - name: Health
+  - name: Auth
   - name: Clinics
   - name: Doctors
   - name: Appointment Types
@@ -73,6 +68,58 @@ paths:
                 $ref: "#/components/schemas/Clinic"
         "400":
           $ref: "#/components/responses/BadRequest"
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create clinic-scoped user and return access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthSignupRequest"
+      responses:
+        "201":
+          description: User created and token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with clinic-scoped credentials
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthLoginRequest"
+      responses:
+        "200":
+          description: Access token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /clinics/{clinicId}/doctors:
     post:
@@ -619,6 +666,61 @@ components:
               type: string
             details:
               type: object
+
+    AuthSignupRequest:
+      type: object
+      required: [clinicId, email, password, name, role]
+      properties:
+        clinicId:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+        role:
+          type: string
+          enum: [patient, clinic_staff]
+
+    AuthLoginRequest:
+      type: object
+      required: [clinicId, email, password]
+      properties:
+        clinicId:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthUser:
+      type: object
+      properties:
+        _id:
+          type: string
+        clinicId:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [patient, clinic_staff]
+        name:
+          type: string
+        isActive:
+          type: boolean
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        user:
+          $ref: "#/components/schemas/AuthUser"
 
     CreateClinicRequest:
       type: object

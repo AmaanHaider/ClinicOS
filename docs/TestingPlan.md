@@ -18,10 +18,11 @@ Do not fake the unique index or transaction behavior in core booking tests. The 
 |----------|------|
 | OpenAPI 3 YAML | `openapi/openapi.yaml` |
 | Swagger UI | `http://localhost:3000/api-docs` (when server running) |
-| Postman | `postman/ClinicOS.postman_collection.json` (variables + JWT signing in one file) |
-| Postman JWT | Auto-signed from collection `jwtSecret` / `jwtExpiresIn` (same as `.env`) |
+| Auth endpoints | `POST /auth/signup`, `POST /auth/login` |
+| JWT helper | `npm run mint-jwt` |
+| Curl E2E | `npm run e2e:curl` or `./scripts/e2e-curl.sh http://localhost:3000 $(npm run mint-jwt --silent)` |
 
-Use the Postman **08 E2E Flow** folder as the manual regression checklist after seed.
+Use **`npm run e2e:curl`** as the manual regression checklist after seed.
 
 ## Test Categories
 

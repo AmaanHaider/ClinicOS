@@ -12,7 +12,13 @@ This file turns the endpoint section of `docs/Task.md` into implementation-ready
 
 ## Postman
 
-Postman: `postman/ClinicOS.postman_collection.json` (single file; `clinic_india` defaults in collection variables). JWT auto-signed from `jwtSecret` / `jwtExpiresIn` (match `.env`). Dev headers work when `NODE_ENV` is not `production`.
+Optional: `postman/ClinicOS.postman_collection.json` (not required; use `npm run e2e:curl` for manual E2E).
+
+## Auth layer status
+
+- Protected routes require JWT Bearer tokens.
+- Credential endpoints are available: `POST /auth/signup`, `POST /auth/login`.
+- `npm run mint-jwt` remains available as a developer utility for manual testing and scripts.
 
 ## Global API Rules
 
@@ -35,12 +41,81 @@ Use one consistent error shape:
 ```json
 {
   "error": {
-    "code": "SLOT_TAKEN",
+    "code": "CONFLICT",
     "message": "This slot has just been taken. Please select another.",
     "details": {}
   }
 }
 ```
+
+Standard HTTP error codes returned by the API:
+
+| Code | HTTP | Typical use |
+|------|------|-------------|
+| `BAD_REQUEST` | 400 | Validation, business rule rejection |
+| `UNAUTHORIZED` | 401 | Missing or invalid JWT |
+| `FORBIDDEN` | 403 | Clinic mismatch, ownership |
+| `NOT_FOUND` | 404 | Missing resource |
+| `CONFLICT` | 409 | Slot taken, duplicate waitlist, version conflict |
+| `GONE` | 410 | Expired hold or waitlist offer |
+| `DUPLICATE_KEY` | 409 | Unhandled Mongo duplicate key (middleware fallback) |
+| `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |
+
+## Auth Endpoints
+
+### `POST /auth/signup`
+
+Purpose: create a clinic-scoped user account for login.
+
+Request:
+
+```json
+{
+  "clinicId": "clinic_01HX...",
+  "email": "admin@clinic.example",
+  "password": "StrongPass123!",
+  "name": "Clinic Admin",
+  "role": "clinic_staff"
+}
+```
+
+Rules:
+- `clinicId` must exist.
+- `email` unique per clinic.
+- Password must be hashed before storage.
+- Returns user identity and access token.
+
+### `POST /auth/login`
+
+Purpose: exchange clinic-scoped credentials for JWT.
+
+Request:
+
+```json
+{
+  "clinicId": "clinic_01HX...",
+  "email": "admin@clinic.example",
+  "password": "StrongPass123!"
+}
+```
+
+Success:
+
+```json
+{
+  "accessToken": "eyJ...",
+  "user": {
+    "_id": "user_01HX...",
+    "clinicId": "clinic_01HX...",
+    "role": "clinic_staff",
+    "name": "Clinic Admin"
+  }
+}
+```
+
+### `POST /auth/refresh` (future)
+
+Purpose: issue a new access token from a valid refresh session.
 
 ## Clinics
 
@@ -437,7 +512,7 @@ Rules:
    - write `created` event
 9. If unique reservation insert fails with `11000`, check if blocker is expired.
 10. If blocker is expired, transactionally mark reservation and appointment `expired`, write `expired` event, retry once.
-11. Otherwise return `409 SLOT_TAKEN`.
+11. Otherwise return `409 CONFLICT`.
 
 Success: `201`
 
@@ -457,7 +532,7 @@ Conflict: `409`
 ```json
 {
   "error": {
-    "code": "SLOT_TAKEN",
+    "code": "CONFLICT",
     "message": "This slot has just been taken. Please select another."
   }
 }
@@ -476,7 +551,7 @@ Rules:
    - reservation `held -> confirmed`
    - increment appointment version
    - write `confirmed` event
-5. Expired hold returns `410 HOLD_EXPIRED`.
+5. Expired hold returns `410 GONE`.
 6. Concurrent confirm returns `409`.
 
 Success: `200`
@@ -486,7 +561,7 @@ Expired:
 ```json
 {
   "error": {
-    "code": "HOLD_EXPIRED",
+    "code": "GONE",
     "message": "Your booking hold has expired. Please start again."
   }
 }

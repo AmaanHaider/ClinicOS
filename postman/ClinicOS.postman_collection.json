@@ -1,84 +1,16 @@
 {
   "info": {
-    "_postman_id": "clinicos-api-collection",
-    "name": "ClinicOS API",
-    "description": "End-to-end collection for the ClinicOS scheduling API (single file — all variables built in).\n\n## Setup\n1. `npm run seed`\n2. Import this collection only\n3. Collection variables → set `jwtSecret` / `jwtExpiresIn` to match `.env` (`JWT_SECRET`, `JWT_EXPIRES_IN`)\n4. Run requests — Bearer JWT is signed automatically\n\n## Variables (Collection)\n`baseUrl`, `clinicId`, `jwtSecret`, `jwtExpiresIn`, `patientId`, `actorId`, `actorRole`, `staffActorId`, plus runtime `doctorId`, `appointmentId`, etc.\n\n## Auth\nBearer JWT auto-signed from collection variables. Staff requests (name contains \"staff\") use `staffActorId`. Folder **09 Dev Headers** optional when `NODE_ENV` ≠ `production`.\n\n## E2E\nRun **08 E2E Flow** in order after seed.",
+    "_postman_id": "clinicos-auth-manual",
+    "name": "ClinicOS API (Auth Flow)",
+    "description": "Auth-first manual collection.\n\n**Only collection variable:** `accessToken` (Bearer JWT).\n\n## Flow\n1. Run public requests (Health, Create Clinic, Signup/Login).\n2. Copy `accessToken` from signup/login response into collection variable `accessToken`.\n3. Copy IDs from each response into the next request URL/body by hand.\n\nNo other variables. No auto-scripts.\n\n```bash\nnpm run setup:indexes && npm run dev\n```",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
     "type": "bearer",
     "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
   },
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "function parseExpires(exp) {",
-          "  const m = String(exp || '7d').match(/^(\\d+)([smhd])$/);",
-          "  if (!m) return 7 * 86400;",
-          "  const n = parseInt(m[1], 10);",
-          "  const u = { s: 1, m: 60, h: 3600, d: 86400 };",
-          "  return n * (u[m[2]] || 86400);",
-          "}",
-          "function b64urlJson(obj) {",
-          "  return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(JSON.stringify(obj)))",
-          "    .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
-          "}",
-          "function signJwtHS256(payload, secret, expiresIn) {",
-          "  const now = Math.floor(Date.now() / 1000);",
-          "  const header = { alg: 'HS256', typ: 'JWT' };",
-          "  const body = Object.assign({}, payload, { iat: now, exp: now + parseExpires(expiresIn) });",
-          "  const unsigned = b64urlJson(header) + '.' + b64urlJson(body);",
-          "  const sig = CryptoJS.HmacSHA256(unsigned, secret);",
-          "  const sigB64 = CryptoJS.enc.Base64.stringify(sig)",
-          "    .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
-          "  return unsigned + '.' + sigB64;",
-          "}",
-          "const authType = (pm.request.auth && pm.request.auth.type) || (pm.request.auth === undefined ? 'inherit' : 'inherit');",
-          "if (authType === 'noauth') return;",
-          "const inherited = !pm.request.auth || pm.request.auth.type === 'bearer' || authType === 'inherit';",
-          "if (!inherited) return;",
-          "const v = (k) => pm.collectionVariables.get(k);",
-          "const secret = v('jwtSecret');",
-          "if (!secret) {",
-          "  console.warn('Set jwtSecret collection variable to match JWT_SECRET in .env');",
-          "  return;",
-          "}",
-          "const clinicId = v('clinicId');",
-          "const expiresIn = v('jwtExpiresIn') || '7d';",
-          "const name = (pm.info.requestName || '').toLowerCase();",
-          "let sub = v('actorId') || v('patientId') || 'patient_demo';",
-          "let role = v('actorRole') || 'patient';",
-          "if (name.includes('staff')) {",
-          "  sub = v('staffActorId') || 'staff_demo';",
-          "  role = 'clinic_staff';",
-          "}",
-          "const token = signJwtHS256({ sub, clinicId, role, name: sub }, secret, expiresIn);",
-          "pm.collectionVariables.set('accessToken', token);"
-        ]
-      }
-    }
-  ],
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
-    { "key": "clinicId", "value": "clinic_india", "type": "string" },
-    { "key": "jwtSecret", "value": "dev-secret", "type": "string" },
-    { "key": "jwtExpiresIn", "value": "7d", "type": "string" },
-    { "key": "actorRole", "value": "patient", "type": "string" },
-    { "key": "patientId", "value": "patient_demo", "type": "string" },
-    { "key": "actorId", "value": "patient_demo", "type": "string" },
-    { "key": "staffActorId", "value": "staff_demo", "type": "string" },
-    { "key": "accessToken", "value": "", "type": "string" },
-    { "key": "doctorId", "value": "", "type": "string" },
-    { "key": "appointmentTypeId", "value": "", "type": "string" },
-    { "key": "appointmentId", "value": "", "type": "string" },
-    { "key": "waitlistId", "value": "", "type": "string" },
-    { "key": "slotStart", "value": "", "type": "string" },
-    { "key": "fromDate", "value": "", "type": "string" },
-    { "key": "toDate", "value": "", "type": "string" },
-    { "key": "targetDate", "value": "", "type": "string" }
+    { "key": "accessToken", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -89,14 +21,13 @@
           "request": {
             "auth": { "type": "noauth" },
             "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/health"
+            "url": "http://localhost:3000/health"
           }
         }
       ]
     },
     {
-      "name": "01 Clinics (public)",
+      "name": "01 Setup & Auth",
       "item": [
         {
           "name": "POST Create Clinic",
@@ -106,85 +37,59 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Demo Clinic\",\n  \"timezone\": \"Asia/Kolkata\",\n  \"contactEmail\": \"demo@example.com\"\n}"
+              "raw": "{\n  \"name\": \"Postman Test Clinic\",\n  \"timezone\": \"Asia/Kolkata\",\n  \"contactEmail\": \"admin@postman.test\",\n  \"address\": {\n    \"line1\": \"1 Test Road\",\n    \"city\": \"Bengaluru\",\n    \"state\": \"Karnataka\",\n    \"pincode\": \"560001\"\n  }\n}"
             },
-            "url": "{{baseUrl}}/clinics"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "  pm.collectionVariables.set('clinicId', pm.response.json()._id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "02 Doctors",
-      "item": [
-        {
-          "name": "GET List Doctors",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/clinics/{{clinicId}}/doctors"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const data = pm.response.json().data;",
-                  "if (data && data[0]) pm.collectionVariables.set('doctorId', data[0]._id);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": "http://localhost:3000/clinics",
+            "description": "Copy `_id` from response → use as clinicId in auth + URLs below."
+          }
         },
         {
-          "name": "POST Create Doctor",
+          "name": "POST Auth Signup (staff)",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dr Postman\",\n  \"supportedAppointmentTypes\": [\"{{appointmentTypeId}}\"]\n}"
+              "raw": "{\n  \"clinicId\": \"PASTE_CLINIC_ID_HERE\",\n  \"email\": \"staff@postman.test\",\n  \"password\": \"StrongPass123!\",\n  \"name\": \"Staff User\",\n  \"role\": \"clinic_staff\"\n}"
             },
-            "url": "{{baseUrl}}/clinics/{{clinicId}}/doctors"
+            "url": "http://localhost:3000/auth/signup",
+            "description": "Copy `accessToken` from response → set collection variable `accessToken`."
+          }
+        },
+        {
+          "name": "POST Auth Login (staff)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clinicId\": \"PASTE_CLINIC_ID_HERE\",\n  \"email\": \"staff@postman.test\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "url": "http://localhost:3000/auth/login",
+            "description": "Copy `accessToken` → set collection variable `accessToken`."
+          }
+        },
+        {
+          "name": "POST Auth Signup (patient)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clinicId\": \"PASTE_CLINIC_ID_HERE\",\n  \"email\": \"patient@postman.test\",\n  \"password\": \"StrongPass123!\",\n  \"name\": \"Test Patient\",\n  \"role\": \"patient\"\n}"
+            },
+            "url": "http://localhost:3000/auth/signup",
+            "description": "For patient-only actions (book/waitlist), paste patient `accessToken` into collection variable `accessToken`."
           }
         }
       ]
     },
     {
-      "name": "03 Appointment Types",
+      "name": "02 Appointment Types",
       "item": [
-        {
-          "name": "GET List Appointment Types",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/clinics/{{clinicId}}/appointment-types"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const types = pm.response.json().data || [];",
-                  "const consult = types.find(t => t.name === 'General Consult') || types[0];",
-                  "if (consult) pm.collectionVariables.set('appointmentTypeId', consult._id);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
         {
           "name": "POST Create Appointment Type",
           "request": {
@@ -192,18 +97,52 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Quick Visit\",\n  \"durationMinutes\": 10,\n  \"color\": \"#00AA88\"\n}"
+              "raw": "{\n  \"name\": \"General Consult\",\n  \"durationMinutes\": 15,\n  \"color\": \"#4A90E2\"\n}"
             },
-            "url": "{{baseUrl}}/clinics/{{clinicId}}/appointment-types"
+            "url": "http://localhost:3000/clinics/PASTE_CLINIC_ID_HERE/appointment-types"
           }
         },
         {
-          "name": "PATCH Deactivate Appointment Type",
+          "name": "GET List Appointment Types",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:3000/clinics/PASTE_CLINIC_ID_HERE/appointment-types"
+          }
+        },
+        {
+          "name": "PATCH Update Appointment Type",
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"isActive\": false\n}" },
-            "url": "{{baseUrl}}/appointment-types/{{appointmentTypeId}}"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"durationMinutes\": 20\n}"
+            },
+            "url": "http://localhost:3000/appointment-types/PASTE_APPOINTMENT_TYPE_ID_HERE"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Doctors",
+      "item": [
+        {
+          "name": "POST Create Doctor",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dr. Postman Test\",\n  \"specialisation\": \"General Physician\",\n  \"email\": \"doctor@postman.test\",\n  \"supportedAppointmentTypes\": [\"PASTE_APPOINTMENT_TYPE_ID_HERE\"]\n}"
+            },
+            "url": "http://localhost:3000/clinics/PASTE_CLINIC_ID_HERE/doctors"
+          }
+        },
+        {
+          "name": "GET List Doctors",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:3000/clinics/PASTE_CLINIC_ID_HERE/doctors"
           }
         }
       ]
@@ -212,114 +151,60 @@
       "name": "04 Availability",
       "item": [
         {
-          "name": "PUT Weekly Template",
+          "name": "PUT Set Weekly Availability",
           "request": {
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"weeklyTemplate\": {\n    \"MON\": [{\"start\": \"09:00\", \"end\": \"12:00\"}],\n    \"TUE\": [], \"WED\": [], \"THU\": [], \"FRI\": [], \"SAT\": [], \"SUN\": []\n  }\n}"
+              "raw": "{\n  \"weeklyTemplate\": {\n    \"MON\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"TUE\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"WED\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"THU\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"FRI\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"SAT\": [],\n    \"SUN\": []\n  }\n}"
             },
-            "url": "{{baseUrl}}/doctors/{{doctorId}}/availability"
+            "url": "http://localhost:3000/doctors/PASTE_DOCTOR_ID_HERE/availability"
           }
         },
         {
-          "name": "GET Availability",
-          "request": { "method": "GET", "url": "{{baseUrl}}/doctors/{{doctorId}}/availability" }
+          "name": "GET Get Availability",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:3000/doctors/PASTE_DOCTOR_ID_HERE/availability"
+          }
         },
         {
-          "name": "POST Block Exception",
+          "name": "POST Add Exception (block)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"date\": \"{{targetDate}}\",\n  \"type\": \"block\",\n  \"reason\": \"Postman block\"\n}"
+              "raw": "{\n  \"date\": \"YYYY-MM-DD\",\n  \"type\": \"block\",\n  \"reason\": \"Conference\"\n}"
             },
-            "url": "{{baseUrl}}/doctors/{{doctorId}}/exceptions"
+            "url": "http://localhost:3000/doctors/PASTE_DOCTOR_ID_HERE/exceptions"
           }
         },
         {
-          "name": "POST Override Exception",
+          "name": "POST Validate Availability",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"date\": \"2099-06-02\",\n  \"type\": \"override\",\n  \"windows\": [{\"start\": \"10:00\", \"end\": \"14:00\"}],\n  \"reason\": \"Half day\"\n}"
+              "raw": "{\n  \"proposedTemplate\": {\n    \"MON\": [{ \"start\": \"09:00\", \"end\": \"12:00\" }],\n    \"TUE\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"WED\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"THU\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"FRI\": [{ \"start\": \"09:00\", \"end\": \"17:00\" }],\n    \"SAT\": [],\n    \"SUN\": []\n  },\n  \"dateRange\": {\n    \"from\": \"YYYY-MM-DD\",\n    \"to\": \"YYYY-MM-DD\"\n  }\n}"
             },
-            "url": "{{baseUrl}}/doctors/{{doctorId}}/exceptions"
-          }
-        },
-        {
-          "name": "POST Validate Proposed Template",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"proposedTemplate\": {\n    \"MON\": [{\"start\": \"09:00\", \"end\": \"12:00\"}],\n    \"TUE\": [], \"WED\": [], \"THU\": [], \"FRI\": [], \"SAT\": [], \"SUN\": []\n  },\n  \"dateRange\": {\"from\": \"{{fromDate}}\", \"to\": \"{{toDate}}\"}\n}"
-            },
-            "url": "{{baseUrl}}/doctors/{{doctorId}}/availability/validate"
-          }
-        },
-        {
-          "name": "DELETE Exception",
-          "request": {
-            "method": "DELETE",
-            "url": "{{baseUrl}}/doctors/{{doctorId}}/exceptions/{{targetDate}}"
+            "url": "http://localhost:3000/doctors/PASTE_DOCTOR_ID_HERE/availability/validate"
           }
         }
       ]
     },
     {
       "name": "05 Slots",
-      "event": [
-        {
-          "listen": "prerequest",
-          "script": {
-            "exec": [
-              "function fmt(d) { return d.toISOString().slice(0, 10); }",
-              "const from = new Date(); from.setDate(from.getDate() + 3);",
-              "const to = new Date(from); to.setDate(to.getDate() + 14);",
-              "pm.collectionVariables.set('fromDate', fmt(from));",
-              "pm.collectionVariables.set('toDate', fmt(to));",
-              "pm.collectionVariables.set('targetDate', fmt(from));"
-            ],
-            "type": "text/javascript"
-          }
-        }
-      ],
       "item": [
         {
           "name": "GET Available Slots",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/slots?clinicId={{clinicId}}&doctorId={{doctorId}}&appointmentType={{appointmentTypeId}}&from={{fromDate}}&to={{toDate}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["slots"],
-              "query": [
-                { "key": "clinicId", "value": "{{clinicId}}" },
-                { "key": "doctorId", "value": "{{doctorId}}" },
-                { "key": "appointmentType", "value": "{{appointmentTypeId}}" },
-                { "key": "from", "value": "{{fromDate}}" },
-                { "key": "to", "value": "{{toDate}}" }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const slots = pm.response.json().slots || [];",
-                  "if (slots[0]) pm.collectionVariables.set('slotStart', slots[0].start);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": "http://localhost:3000/slots?clinicId=PASTE_CLINIC_ID_HERE&doctorId=PASTE_DOCTOR_ID_HERE&appointmentType=PASTE_APPOINTMENT_TYPE_ID_HERE&from=YYYY-MM-DD&to=YYYY-MM-DD",
+            "description": "Max 30-day range. Copy a slot `start` for booking."
+          }
         }
       ]
     },
@@ -333,46 +218,38 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"doctorId\": \"{{doctorId}}\",\n  \"appointmentTypeId\": \"{{appointmentTypeId}}\",\n  \"slotStart\": \"{{slotStart}}\",\n  \"patientId\": \"{{patientId}}\",\n  \"idempotencyKey\": \"postman-{{$timestamp}}\",\n  \"patient\": {\"name\": \"Postman Patient\"}\n}"
+              "raw": "{\n  \"doctorId\": \"PASTE_DOCTOR_ID_HERE\",\n  \"appointmentTypeId\": \"PASTE_APPOINTMENT_TYPE_ID_HERE\",\n  \"slotStart\": \"PASTE_SLOT_START_ISO_HERE\",\n  \"patientId\": \"patient_postman\",\n  \"patient\": {\n    \"name\": \"Test Patient\",\n    \"phone\": \"+91-9876543210\",\n    \"email\": \"patient@postman.test\"\n  },\n  \"notes\": \"Postman booking test\"\n}"
             },
-            "url": "{{baseUrl}}/appointments"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201 || pm.response.code === 200) {",
-                  "  pm.collectionVariables.set('appointmentId', pm.response.json()._id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": "http://localhost:3000/appointments",
+            "description": "Use patient token in `accessToken` if booking as patient."
+          }
         },
         {
           "name": "PATCH Confirm Appointment",
-          "request": { "method": "PATCH", "url": "{{baseUrl}}/appointments/{{appointmentId}}/confirm" }
+          "request": {
+            "method": "PATCH",
+            "url": "http://localhost:3000/appointments/PASTE_APPOINTMENT_ID_HERE/confirm"
+          }
         },
         {
-          "name": "GET Appointment",
-          "request": { "method": "GET", "url": "{{baseUrl}}/appointments/{{appointmentId}}" }
+          "name": "GET Get Appointment",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:3000/appointments/PASTE_APPOINTMENT_ID_HERE"
+          }
         },
         {
           "name": "GET Appointment History",
-          "request": { "method": "GET", "url": "{{baseUrl}}/appointments/{{appointmentId}}/history" }
-        },
-        {
-          "name": "GET List Appointments (patient)",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/clinics/{{clinicId}}/appointments?patientId={{patientId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["clinics", "{{clinicId}}", "appointments"],
-              "query": [{ "key": "patientId", "value": "{{patientId}}" }]
-            }
+            "url": "http://localhost:3000/appointments/PASTE_APPOINTMENT_ID_HERE/history"
+          }
+        },
+        {
+          "name": "GET List Appointments",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:3000/clinics/PASTE_CLINIC_ID_HERE/appointments?doctorId=PASTE_DOCTOR_ID_HERE&from=YYYY-MM-DD&to=YYYY-MM-DD&limit=20"
           }
         },
         {
@@ -382,17 +259,9 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"newSlotStart\": \"{{slotStart}}\",\n  \"reason\": \"Postman reschedule\"\n}"
+              "raw": "{\n  \"newSlotStart\": \"PASTE_NEW_SLOT_START_ISO_HERE\",\n  \"reason\": \"Postman reschedule test\"\n}"
             },
-            "url": "{{baseUrl}}/appointments/{{appointmentId}}"
-          }
-        },
-        {
-          "name": "PATCH Mark Complete (staff JWT)",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/appointments/{{appointmentId}}/complete",
-            "description": "Requires staff role in JWT. Appointment must be in the past for success."
+            "url": "http://localhost:3000/appointments/PASTE_APPOINTMENT_ID_HERE"
           }
         },
         {
@@ -402,9 +271,24 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"cancelledBy\": \"patient\",\n  \"reason\": \"Postman cancel\"\n}"
+              "raw": "{\n  \"cancelledBy\": \"patient\",\n  \"reason\": \"Postman cancel test\"\n}"
             },
-            "url": "{{baseUrl}}/appointments/{{appointmentId}}"
+            "url": "http://localhost:3000/appointments/PASTE_APPOINTMENT_ID_HERE"
+          }
+        },
+        {
+          "name": "PATCH Mark No-Show",
+          "request": {
+            "method": "PATCH",
+            "url": "http://localhost:3000/appointments/PASTE_APPOINTMENT_ID_HERE/noshow",
+            "description": "Staff token in `accessToken`. Appointment must be confirmed and in the past."
+          }
+        },
+        {
+          "name": "PATCH Mark Complete",
+          "request": {
+            "method": "PATCH",
+            "url": "http://localhost:3000/appointments/PASTE_APPOINTMENT_ID_HERE/complete"
           }
         }
       ]
@@ -419,127 +303,57 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"doctorId\": \"{{doctorId}}\",\n  \"appointmentTypeId\": \"{{appointmentTypeId}}\",\n  \"targetDate\": \"{{targetDate}}\",\n  \"patientId\": \"{{patientId}}\",\n  \"urgencyFlag\": false\n}"
+              "raw": "{\n  \"doctorId\": \"PASTE_DOCTOR_ID_HERE\",\n  \"appointmentTypeId\": \"PASTE_APPOINTMENT_TYPE_ID_HERE\",\n  \"targetDate\": \"YYYY-MM-DD\",\n  \"patient\": { \"name\": \"Waitlist Patient\", \"phone\": \"+91-9999999999\" },\n  \"urgencyFlag\": false\n}"
             },
-            "url": "{{baseUrl}}/waitlist"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) pm.collectionVariables.set('waitlistId', pm.response.json()._id);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": "http://localhost:3000/waitlist",
+            "description": "Day must have zero slots. Use patient token in `accessToken`. Omit patientId to use JWT user id."
+          }
         },
         {
-          "name": "GET Doctor Waitlist",
-          "request": { "method": "GET", "url": "{{baseUrl}}/doctors/{{doctorId}}/waitlist" }
+          "name": "GET List Waitlist",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:3000/doctors/PASTE_DOCTOR_ID_HERE/waitlist?targetDate=YYYY-MM-DD&appointmentTypeId=PASTE_APPOINTMENT_TYPE_ID_HERE"
+          }
         },
         {
           "name": "POST Accept Waitlist Offer",
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/waitlist/{{waitlistId}}/accept",
-            "description": "Only the patient on the entry can accept (403 otherwise)."
+            "url": "http://localhost:3000/waitlist/PASTE_WAITLIST_ID_HERE/accept",
+            "description": "Patient token must own the waitlist entry."
           }
         },
         {
-          "name": "DELETE Leave Waitlist",
-          "request": { "method": "DELETE", "url": "{{baseUrl}}/waitlist/{{waitlistId}}" }
-        }
-      ]
-    },
-    {
-      "name": "08 E2E Flow (run in order)",
-      "description": "Automated happy path after seed. JWT is auto-signed from jwtSecret in environment. Run folder sequentially.",
-      "item": [
-        {
-          "name": "1 Health",
-          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/health" }
-        },
-        {
-          "name": "2 List Doctors",
-          "request": { "method": "GET", "url": "{{baseUrl}}/clinics/{{clinicId}}/doctors" },
-          "event": [{ "listen": "test", "script": { "exec": ["const d=pm.response.json().data; if(d&&d[0]) pm.collectionVariables.set('doctorId',d[0]._id);"], "type": "text/javascript" } }]
-        },
-        {
-          "name": "3 List Types",
-          "request": { "method": "GET", "url": "{{baseUrl}}/clinics/{{clinicId}}/appointment-types" },
-          "event": [{ "listen": "test", "script": { "exec": ["const t=pm.response.json().data; const c=t.find(x=>x.name==='General Consult')||t[0]; if(c) pm.collectionVariables.set('appointmentTypeId',c._id);"], "type": "text/javascript" } }]
-        },
-        {
-          "name": "4 Get Slots",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/slots?clinicId={{clinicId}}&doctorId={{doctorId}}&appointmentType={{appointmentTypeId}}&from={{fromDate}}&to={{toDate}}"
-          },
-          "event": [
-            { "listen": "prerequest", "script": { "exec": ["function f(d){return d.toISOString().slice(0,10)}; const a=new Date(); a.setDate(a.getDate()+3); const b=new Date(a); b.setDate(b.getDate()+14); pm.collectionVariables.set('fromDate',f(a)); pm.collectionVariables.set('toDate',f(b)); pm.collectionVariables.set('targetDate',f(a));"], "type": "text/javascript" } },
-            { "listen": "test", "script": { "exec": ["const s=pm.response.json().slots; if(s&&s[0]) pm.collectionVariables.set('slotStart',s[0].start);"], "type": "text/javascript" } }
-          ]
-        },
-        {
-          "name": "5 Book",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"doctorId\": \"{{doctorId}}\",\n  \"appointmentTypeId\": \"{{appointmentTypeId}}\",\n  \"slotStart\": \"{{slotStart}}\",\n  \"patientId\": \"e2e_patient\",\n  \"idempotencyKey\": \"e2e-{{$timestamp}}\"\n}" },
-            "url": "{{baseUrl}}/appointments"
-          },
-          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===201) pm.collectionVariables.set('appointmentId',pm.response.json()._id);"], "type": "text/javascript" } }]
-        },
-        {
-          "name": "6 Confirm",
-          "request": { "method": "PATCH", "url": "{{baseUrl}}/appointments/{{appointmentId}}/confirm" }
-        },
-        {
-          "name": "7 History",
-          "request": { "method": "GET", "url": "{{baseUrl}}/appointments/{{appointmentId}}/history" }
-        },
-        {
-          "name": "8 Cancel",
+          "name": "DELETE Remove Waitlist Entry",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\"cancelledBy\":\"patient\"}" },
-            "url": "{{baseUrl}}/appointments/{{appointmentId}}"
+            "url": "http://localhost:3000/waitlist/PASTE_WAITLIST_ID_HERE"
           }
         }
       ]
     },
     {
-      "name": "09 Dev Headers (no JWT)",
-      "description": "Optional: x-clinic-id dev headers when NODE_ENV is not production (no JWT).",
+      "name": "08 Auth Errors",
       "item": [
         {
-          "name": "GET Doctors (dev headers)",
+          "name": "POST Login Wrong Password (expect 401)",
           "request": {
             "auth": { "type": "noauth" },
-            "method": "GET",
-            "header": [
-              { "key": "x-clinic-id", "value": "{{clinicId}}" },
-              { "key": "x-actor-id", "value": "staff_demo" },
-              { "key": "x-actor-role", "value": "clinic_staff" },
-              { "key": "x-actor-name", "value": "Dev Staff" }
-            ],
-            "url": "{{baseUrl}}/clinics/{{clinicId}}/doctors"
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clinicId\": \"PASTE_CLINIC_ID_HERE\",\n  \"email\": \"staff@postman.test\",\n  \"password\": \"WrongPassword!\"\n}"
+            },
+            "url": "http://localhost:3000/auth/login"
           }
         },
         {
-          "name": "GET Slots (dev headers)",
+          "name": "GET Doctors Clinic Mismatch (expect 403)",
           "request": {
-            "auth": { "type": "noauth" },
             "method": "GET",
-            "header": [
-              { "key": "x-clinic-id", "value": "{{clinicId}}" },
-              { "key": "x-actor-id", "value": "patient_demo" },
-              { "key": "x-actor-role", "value": "patient" }
-            ],
-            "url": "{{baseUrl}}/slots?clinicId={{clinicId}}&doctorId={{doctorId}}&appointmentType={{appointmentTypeId}}&from={{fromDate}}&to={{toDate}}"
+            "url": "http://localhost:3000/clinics/clinic_wrong_id/doctors"
           }
         }
       ]

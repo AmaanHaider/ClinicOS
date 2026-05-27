@@ -5,7 +5,6 @@ import { createApp } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { setupTestDb, teardownTestDb } from "./helpers/db.js";
 import {
-  authHeaders,
   cleanupFixture,
   createBookingFixture,
   jwtHeaders
@@ -59,25 +58,10 @@ describe.sequential("auth", { timeout: 60000 }, () => {
     expect(res.status).toBe(401);
   });
 
-  it("allows dev headers in non-production", async () => {
+  it("rejects requests without Bearer token", async () => {
     fixture = await createBookingFixture();
     const res = await request(app)
-      .get(`/clinics/${fixture.clinic._id}/doctors`)
-      .set(authHeaders(fixture.clinic._id));
-    expect(res.status).toBe(200);
-  });
-
-  it("rejects dev headers when NODE_ENV is production", async () => {
-    const previous = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    try {
-      fixture = await createBookingFixture();
-      const res = await request(app)
-        .get(`/clinics/${fixture.clinic._id}/doctors`)
-        .set(authHeaders(fixture.clinic._id));
-      expect(res.status).toBe(401);
-    } finally {
-      process.env.NODE_ENV = previous;
-    }
+      .get(`/clinics/${fixture.clinic._id}/doctors`);
+    expect(res.status).toBe(401);
   });
 });

@@ -174,7 +174,7 @@ MongoDB
 }
 ```
 
-**Why duration lives here:** The slot engine reads `durationMinutes` to compute slot boundaries. Every slot query resolves the appointment type first, then uses its duration to step through availability windows. Changing duration here instantly affects all future slot computations without any migration.
+**Why duration lives here:** The slot engine reads `durationMinutes` to compute slot boundaries. Every slot query resolves the appointment type first, then uses its duration to step through availability windows. Changing duration here instantly affects all future slot computations without any structural backfill.
 
 ---
 
@@ -643,7 +643,7 @@ HTTP 409 Conflict:
 ```json
 {
   "error": {
-    "code": "SLOT_TAKEN",
+    "code": "CONFLICT",
     "message": "This slot has just been taken. Please select another.",
     "details": { "slotStart": "2025-06-15T03:30:00Z" }
   }
@@ -898,7 +898,7 @@ Mitigation: accepted for the scheduling use case. Analytical and reporting queri
 
 **Constraints:**
 - Duplicate clinic names are allowed — two "City Health" clinics can exist. `clinicId` must be globally unique.
-- Timezone is mandatory and must be valid IANA. This field cannot be changed after creation without a migration — the slot engine relies on it for all UTC conversions.
+- Timezone is mandatory and must be valid IANA. This field cannot be changed after creation without a controlled data rewrite — the slot engine relies on it for all UTC conversions.
 
 **Edge cases:**
 - What if timezone is omitted? Reject with 400 — there is no safe default.
@@ -1282,7 +1282,7 @@ All params required.
 ```json
 {
   "error": {
-    "code": "SLOT_TAKEN",
+    "code": "CONFLICT",
     "message": "This slot has just been taken. Please select another."
   }
 }
@@ -1317,7 +1317,7 @@ All params required.
 
 **Response (expired):** 410
 ```json
-{ "error": { "code": "HOLD_EXPIRED", "message": "Your booking hold has expired. Please start again." } }
+{ "error": { "code": "GONE", "message": "Your booking hold has expired. Please start again." } }
 ```
 
 **Edge cases:**
@@ -1590,7 +1590,8 @@ clinic-scheduling-engine/
 │   ├── server.js
 │   ├── config/
 │   │   ├── db.js
-│   │   └── env.js
+│   │   ├── env.js
+│   │   └── swagger.js
 │   ├── models/
 │   │   ├── Clinic.js
 │   │   ├── Doctor.js
@@ -1601,28 +1602,25 @@ clinic-scheduling-engine/
 │   │   ├── SlotReservation.js
 │   │   ├── AppointmentEvent.js
 │   │   ├── WaitlistEntry.js
-│   │   └── SlotOffer.js
+│   │   ├── SlotOffer.js
+│   │   └── index.js
 │   ├── routes/
-│   │   ├── health.routes.js
-│   │   ├── clinic.routes.js
-│   │   ├── doctor.routes.js
-│   │   ├── appointmentType.routes.js
-│   │   ├── availability.routes.js
-│   │   ├── slot.routes.js
-│   │   ├── appointment.routes.js
-│   │   └── waitlist.routes.js
+│   │   └── index.js              # all HTTP routes (incl. GET /health)
 │   ├── controllers/
 │   │   ├── clinic.controller.js
 │   │   ├── doctor.controller.js
-│   │   ├── appointmentType.controller.js
+│   │   ├── appointment-type.controller.js
 │   │   ├── availability.controller.js
 │   │   ├── slot.controller.js
 │   │   ├── appointment.controller.js
 │   │   └── waitlist.controller.js
 │   ├── services/
 │   │   ├── slot.engine.js
+│   │   ├── slot.service.js
 │   │   ├── booking.service.js
-│   │   ├── appointment.service.js
+│   │   ├── clinic.service.js
+│   │   ├── doctor.service.js
+│   │   ├── appointment-type.service.js
 │   │   ├── availability.service.js
 │   │   ├── event.service.js
 │   │   └── waitlist.service.js
@@ -1632,6 +1630,7 @@ clinic-scheduling-engine/
 │   │   ├── validate.js
 │   │   └── error.js
 │   ├── validators/
+│   │   ├── common.js
 │   │   ├── clinic.validator.js
 │   │   ├── doctor.validator.js
 │   │   ├── appointmentType.validator.js
@@ -1644,21 +1643,18 @@ clinic-scheduling-engine/
 │       ├── slot.utils.js
 │       ├── transactions.js
 │       ├── ids.js
+│       ├── jwt.js
 │       └── errors.js
 ├── openapi/
 │   └── openapi.yaml
-├── postman/
-│   └── ClinicOS.postman_collection.json
-├── tests/
-│   ├── slot.engine.test.js
-│   ├── booking.concurrency.test.js
-│   ├── appointment-transitions.test.js
-│   ├── slots.api.test.js
-│   └── waitlist.test.js
+├── postman/                      # optional (collection may be added later)
+├── tests/                        # see docs/Progress.md test summary
 └── scripts/
     ├── seed.js
     ├── setup-indexes.js
-```
+    ├── init-replica.js
+    ├── mint-jwt.js
+    └── e2e-curl.sh
 
 ---
 
@@ -1672,25 +1668,30 @@ cd clinic-scheduling-engine
 # Copy environment variables
 cp .env.example .env
 
-# Start MongoDB and the API server
-docker compose up
+# Start MongoDB replica set (API runs on host, not in Compose)
+docker compose up -d
 
-# In a separate terminal, run the seed script
+# Install deps, sync indexes, seed, start API
+npm install
+npm run setup:indexes
 npm run seed
+npm run dev
 
 # Verify the API is running
 curl http://localhost:3000/health
 
+# Mint JWT and run full curl E2E
+npm run mint-jwt
+npm run e2e:curl
+
 # Open Swagger UI
 open http://localhost:3000/api-docs
-
-# Postman: set jwtSecret / jwtExpiresIn in environment to match .env (tokens auto-signed)
 ```
 
 **Environment variables (.env.example):**
 ```
 PORT=3000
-MONGODB_URI=mongodb://mongo:27017/clinic_scheduling
+MONGODB_URI=mongodb://localhost:27017/clinic_scheduling?replicaSet=rs0
 JWT_SECRET=your-secret-here
 JWT_EXPIRES_IN=7d
 NODE_ENV=development

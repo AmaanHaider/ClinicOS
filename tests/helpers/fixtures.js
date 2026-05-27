@@ -114,12 +114,7 @@ export async function cleanupFixture(clinicId) {
 }
 
 export function authHeaders(clinicId, overrides = {}) {
-  return {
-    "x-clinic-id": clinicId,
-    "x-actor-id": overrides.actorId || "test_patient",
-    "x-actor-role": overrides.role || "patient",
-    "x-actor-name": overrides.name || "Test Patient"
-  };
+  return jwtHeaders(clinicId, overrides);
 }
 
 /** Signed JWT (preferred for production-like tests). */
@@ -134,7 +129,7 @@ export function jwtHeaders(clinicId, overrides = {}) {
 }
 
 export function staffHeaders(clinicId) {
-  return authHeaders(clinicId, { role: "clinic_staff", actorId: "staff_test", name: "Staff User" });
+  return jwtHeaders(clinicId, { role: "clinic_staff", actorId: "staff_test", name: "Staff User" });
 }
 
 export function staffJwtHeaders(clinicId) {

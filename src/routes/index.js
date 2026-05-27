@@ -3,6 +3,7 @@ import { auth } from "../middleware/auth.js";
 import { tenant } from "../middleware/tenant.js";
 import { validate } from "../middleware/validate.js";
 import * as clinic from "../controllers/clinic.controller.js";
+import * as authController from "../controllers/auth.controller.js";
 import * as doctor from "../controllers/doctor.controller.js";
 import * as type from "../controllers/appointment-type.controller.js";
 import * as availability from "../controllers/availability.controller.js";
@@ -10,6 +11,7 @@ import * as slot from "../controllers/slot.controller.js";
 import * as appointment from "../controllers/appointment.controller.js";
 import * as waitlist from "../controllers/waitlist.controller.js";
 import { createClinicSchema } from "../validators/clinic.validator.js";
+import { loginSchema, signupSchema } from "../validators/auth.validator.js";
 import { createDoctorSchema, listDoctorsSchema } from "../validators/doctor.validator.js";
 import { createAppointmentTypeSchema, patchAppointmentTypeSchema } from "../validators/appointmentType.validator.js";
 import { deleteExceptionSchema, exceptionSchema, putAvailabilitySchema, validateAvailabilitySchema } from "../validators/availability.validator.js";
@@ -21,6 +23,8 @@ export const routes = Router();
 
 routes.get("/health", (_req, res) => res.json({ ok: true }));
 routes.post("/clinics", validate(createClinicSchema), clinic.createClinic);
+routes.post("/auth/signup", validate(signupSchema), authController.signup);
+routes.post("/auth/login", validate(loginSchema), authController.login);
 
 routes.use(auth, tenant);
 

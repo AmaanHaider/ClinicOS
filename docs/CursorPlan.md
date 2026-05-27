@@ -69,7 +69,7 @@ Implement Checkpoint 1 from docs/CursorPlan.md. Scaffold a JavaScript Express AP
 ```
 
 Acceptance:
-- `docker compose up` starts MongoDB replica set and API.
+- `docker compose up` starts MongoDB replica set (API runs on host via `npm run dev`, not in Compose).
 - `/health` returns 200.
 - `.env.example` includes:
   - `PORT`
@@ -106,7 +106,7 @@ src/utils/slot.utils.js
 Prompt:
 
 ```txt
-Implement Checkpoint 2. Add auth middleware that extracts actor and clinicId from a dev/test header or JWT placeholder, tenant middleware that attaches req.clinicId and rejects missing clinic context, zod validation middleware, MongoDB transaction helper, and timezone/time-window utilities. Keep behavior aligned with docs/ApiContracts.md.
+Implement Checkpoint 2. Add auth middleware that verifies JWT Bearer tokens and extracts actor and clinicId, tenant middleware that attaches req.clinicId and rejects missing clinic context, zod validation middleware, MongoDB transaction helper, and timezone/time-window utilities. Keep behavior aligned with docs/ApiContracts.md.
 ```
 
 Acceptance:
@@ -480,7 +480,42 @@ Acceptance:
 - No undocumented collections.
 - No pre-materialized slots.
 - OpenAPI spec at `openapi/openapi.yaml` served at `/api-docs`.
-- Postman collection at `postman/ClinicOS.postman_collection.json` with E2E flow.
+- Postman collection at `postman/ClinicOS.postman_collection.json` with E2E flow (optional; may be added later).
+- Curl E2E script: `scripts/e2e-curl.sh` / `npm run e2e:curl`.
+
+## Checkpoint 17 — Auth Foundation
+
+Goal:
+- Add clinic-scoped user identity and login endpoints.
+- Keep existing tenant/concurrency behavior unchanged.
+
+Prompt:
+
+```txt
+Implement Checkpoint 17. Add User model and auth endpoints (`POST /auth/signup`, `POST /auth/login`) with bcrypt password hashing and JWT issuance. Do not change scheduling/booking logic. Keep clinic isolation strict by putting clinicId in JWT and validating route clinic mismatch as before.
+```
+
+Acceptance:
+- `users` model exists with unique `{ clinicId, email }`.
+- Signup and login endpoints return valid access JWT.
+- Existing protected routes still enforce clinic mismatch as `403`.
+- Existing scheduling tests keep passing.
+
+## Checkpoint 18 — Auth Layer Docs and Tooling Alignment
+
+Goal:
+- Move manual testing/docs from mint-jwt to login flow.
+
+Prompt:
+
+```txt
+Implement Checkpoint 18. Update Postman, e2e scripts, and docs to use login/signup flow instead of manual token minting. Keep mint-jwt only as optional developer fallback unless explicitly removed.
+```
+
+Acceptance:
+- Postman collection has auth folder (signup/login) and no baked tokens.
+- Manual API walkthrough uses login first.
+- Docs clearly separate implemented auth vs fallback scripts.
 
 ## Final Manual Demo Checklist
 
@@ -499,5 +534,5 @@ Before showing anyone:
 11. Cancel an appointment and verify reservation released.
 12. Reschedule and verify same appointment ID.
 13. Test cross-clinic access rejection.
-14. Open Swagger UI at `/api-docs` and run Postman **08 E2E Flow** folder.
+14. Open Swagger UI at `/api-docs` and run `npm run e2e:curl`.
 

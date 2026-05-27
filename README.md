@@ -42,11 +42,9 @@ Health check: `GET http://localhost:3000/health`
 | **OpenAPI JSON** | http://localhost:3000/api-docs/openapi.json |
 | **OpenAPI source** | `openapi/openapi.yaml` |
 
-## Postman
+## Postman (optional)
 
-Import **`postman/ClinicOS.postman_collection.json`** (single file — variables are on the collection). Set `jwtSecret` and `jwtExpiresIn` under **Collection variables** to match `JWT_SECRET` and `JWT_EXPIRES_IN` in your `.env`.
-
-Bearer tokens are **signed automatically** before each request. Run **08 E2E Flow** after `npm run seed`. Folder **09 Dev Headers** is optional when `NODE_ENV` is not `production`.
+Postman collection path: `postman/ClinicOS.postman_collection.json` (optional). For manual E2E without Postman, use **`npm run e2e:curl`** after seed.
 
 ## Scripts
 
@@ -58,6 +56,8 @@ Bearer tokens are **signed automatically** before each request. Run **08 E2E Flo
 | `npm run test:all` | Integration tests + seed smoke test |
 | `npm run seed` | Reset DB and load demo clinics, doctors, appointments, waitlist |
 | `npm run setup:indexes` | Sync Mongoose indexes to MongoDB |
+| `npm run mint-jwt` | Print a Bearer JWT (uses `JWT_SECRET` from `.env`) |
+| `npm run e2e:curl` | Hit every API route via curl (server must be running) |
 
 ## Architecture
 
@@ -96,7 +96,12 @@ There is **no** pre-materialised slots collection.
 
 ## Authentication
 
-**Production** (`NODE_ENV=production`): send a signed JWT on every protected route:
+Auth layer endpoints:
+
+- `POST /auth/signup` — create clinic-scoped user and issue access token
+- `POST /auth/login` — issue access token from clinic/email/password
+
+All protected routes require a signed JWT:
 
 ```http
 Authorization: Bearer <token>
@@ -111,16 +116,31 @@ JWT payload fields:
 | `role` | `patient`, `clinic_staff`, or `system` |
 | `name` | Display name (optional) |
 
-Sign tokens with `JWT_SECRET` and `JWT_EXPIRES_IN` from `.env`. Tests use `signToken()` from `src/utils/jwt.js`.
+Sign tokens with `JWT_SECRET` and `JWT_EXPIRES_IN` from `.env`.
 
-**Development / test** (`NODE_ENV` not `production`): dev headers are also accepted when no Bearer token is present:
+For manual login flow, call `POST /auth/signup` (once) then `POST /auth/login`.
 
-```http
-x-clinic-id: clinic_india
-x-actor-id: patient_demo
-x-actor-role: patient
-x-actor-name: Demo Patient
+Developer fallback: generate one for curl with:
+
+```bash
+npm run mint-jwt
+# staff: npm run mint-jwt -- clinic_india staff_demo clinic_staff
+export TOKEN=$(npm run mint-jwt --silent)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/clinics/clinic_india/doctors
 ```
+
+Full API smoke via curl: `npm run e2e:curl` (server must be running; uses a freshly minted patient token).
+
+### Auth layer scope
+
+Auth is part of the platform architecture. Current implementation verifies JWT on all protected routes, with tokens typically generated via `npm run mint-jwt` for manual testing.
+
+Auth layer expansion (next checkpoints):
+- add `POST /auth/signup` and `POST /auth/login` for clinic-scoped credentials
+- move Postman/manual flow to login-issued tokens
+- keep tenant isolation unchanged (`clinicId` in JWT must match route clinic)
+
+Status: current JWT verification is implemented; login/signup endpoints are queued in upcoming checkpoints.
 
 ## Multi-tenancy
 
@@ -168,21 +188,22 @@ With the API running and seed data loaded:
 ```bash
 # Pick a slot from the seeded doctor (adjust IDs/dates from seed output or GET /slots)
 CLINIC=clinic_india
-DOCTOR=$(curl -s "http://localhost:3000/clinics/$CLINIC/doctors" -H "x-clinic-id: $CLINIC" -H "x-actor-id: staff" -H "x-actor-role: clinic_staff" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d)[0]._id))")
+TOKEN="<paste a staff JWT here>"
+DOCTOR=$(curl -s "http://localhost:3000/clinics/$CLINIC/doctors" -H "Authorization: Bearer $TOKEN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).data[0]._id))")
 
 FROM=$(date -v+3d +%F 2>/dev/null || date -d '+3 days' +%F)
 TO=$(date -v+10d +%F 2>/dev/null || date -d '+10 days' +%F)
-TYPE=$(curl -s "http://localhost:3000/clinics/$CLINIC/appointment-types" -H "x-clinic-id: $CLINIC" -H "x-actor-id: staff" -H "x-actor-role: clinic_staff" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).find(t=>t.name==='General Consult')._id))")
+TYPE=$(curl -s "http://localhost:3000/clinics/$CLINIC/appointment-types" -H "Authorization: Bearer $TOKEN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).data.find(t=>t.name==='General Consult')._id))")
 
 SLOT=$(curl -s "http://localhost:3000/slots?doctorId=$DOCTOR&appointmentType=$TYPE&from=$FROM&to=$TO" \
-  -H "x-clinic-id: $CLINIC" -H "x-actor-id: staff" -H "x-actor-role: clinic_staff" \
+  -H "Authorization: Bearer $TOKEN" \
   | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).slots[0].start))")
 
 # Fire two bookings in parallel for the same slotStart
 for i in 1 2; do
   curl -s -o /tmp/book-$i.json -w "%{http_code}\n" -X POST http://localhost:3000/appointments \
     -H "Content-Type: application/json" \
-    -H "x-clinic-id: $CLINIC" -H "x-actor-id: patient_$i" -H "x-actor-role: patient" \
+    -H "Authorization: Bearer $TOKEN" \
     -d "{\"doctorId\":\"$DOCTOR\",\"appointmentTypeId\":\"$TYPE\",\"slotStart\":\"$SLOT\",\"patientId\":\"race_$i\"}" &
 done
 wait
@@ -200,7 +221,7 @@ Expect one `201` and one `409`. Or run `npm test` and inspect `tests/booking.con
 6. Parallel bookings on same slot (one winner)
 7. `DELETE /appointments/:id` (releases reservation; may trigger waitlist offer)
 8. `PATCH /appointments/:id` reschedule (same appointment `_id`)
-9. Cross-clinic request with wrong `x-clinic-id` → `403`
+9. Cross-clinic request with JWT for another clinic → `403`
 
 ## Testing
 
@@ -222,8 +243,9 @@ Integration tests use `MONGODB_URI` from `.env` (Atlas or local). Vitest runs wi
 | `docs/DataModel.md` | Schema and indexes |
 | `docs/ApiContracts.md` | HTTP contracts (see also Swagger) |
 | `docs/TestingPlan.md` | Test matrix |
+| `docs/SubmissionRubric.md` | Requirement checklist vs brief (Pass/Partial/Fail) |
 | `openapi/openapi.yaml` | Machine-readable OpenAPI 3 spec |
-| `postman/ClinicOS.postman_collection.json` | Postman collection (variables included) |
+| `scripts/e2e-curl.sh` | Full API smoke test via curl |
 
 ## Environment variables
 

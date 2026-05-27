@@ -11,9 +11,12 @@
     "test:all": "npm test && npm run test:seed",
     "test:watch": "vitest",
     "seed": "node scripts/seed.js",
-    "setup:indexes": "node scripts/setup-indexes.js"
+    "setup:indexes": "node scripts/setup-indexes.js",
+    "mint-jwt": "node scripts/mint-jwt.js",
+    "e2e:curl": "node scripts/mint-jwt.js | xargs -I{} ./scripts/e2e-curl.sh http://localhost:3000 {}"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

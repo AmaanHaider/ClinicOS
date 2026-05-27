@@ -44,21 +44,18 @@ Do not mark a checkpoint `Done` unless:
 
 **Current checkpoint:** None (core plan complete)
 
-**Current status:** `Done` — API + tests + Swagger + Postman
+**Current status:** `Done` — API + tests + Swagger + auth layer with JWT verification + signup/login
 
-**Overall:** Feature-complete scheduling API; 97 tests; OpenAPI/Swagger; Postman E2E collection
+**Overall:** Feature-complete scheduling API + auth foundation; 101 tests; OpenAPI/Swagger; curl E2E script (`npm run e2e:curl`)
 
 **Next Cursor prompt:**
 
 ```txt
-Manual demo: npm run seed && npm run dev → /api-docs → Postman 08 E2E Flow.
-Optional: CI pipeline, deploy, token issuance endpoint.
+Manual demo: npm run seed && npm run dev → /api-docs → npm run e2e:curl
+Optional: add refresh/logout auth session flow, CI pipeline, and audit rollback test.
 ```
 
-**Priority order if deviating from strict checkpoint sequence:**
-
-1. Checkpoint 6–9, 13–14 — backfill remaining API/unit tests
-2. Manual demo checklist in README before stakeholder review
+**Optional follow-ups:** auth-layer credential endpoints, CI, audit rollback test, performance smoke.
 
 ## Checkpoint Tracker
 
@@ -66,7 +63,7 @@ Optional: CI pipeline, deploy, token issuance endpoint.
 |---|---|---|---|
 | 0 | Planning Only | Done | Architecture reviewed; appointments vs slotReservations split confirmed intentional. |
 | 1 | Project Scaffold | Done | Express, Vitest, Supertest, Docker Mongo replica set, env, health route. API runs on host (`npm run dev`), not in Compose. |
-| 2 | Shared Infrastructure | Done | Auth (dev headers), tenant, validate, transactions, timezone, ids, slot.utils, errors. |
+| 2 | Shared Infrastructure | Done | Auth (JWT), tenant, validate, transactions, timezone, ids, slot.utils, errors. |
 | 3 | Mongoose Models and Indexes | Done | 9 models + `setup:indexes.js`. `index-definitions.test.js` (7) + `reservation-index.test.js` (3) on live Mongo. |
 | 4 | Validators | Done | Zod validators + `validators.test.js` (slot.utils + HTTP validation). |
 | 5 | Seed Script | Done | `scripts/seed.js` + `runSeed()` export: 2 clinics, 6 doctors, 10 confirmed appointments, 2 waitlist entries. `npm run test:seed` / `tests/zz-seed.test.js`. |
@@ -79,19 +76,20 @@ Optional: CI pipeline, deploy, token issuance endpoint.
 | 12 | Complete and No-Show | Done | Staff-only `markOutcome` with optimistic version; `tests/appointment-outcomes.test.js` (8 cases). |
 | 13 | Appointment List | Done | Cursor pagination + 90-day cap. `appointment-list.test.js` (5). |
 | 14 | Availability Validate | Done | Exceptions-aware conflict detection. Covered in `core-routes.test.js`. |
-| 15 | Waitlist | Done | Cancel → offer; accept creates confirmed appointment in one transaction; expired/superseded queue advance; `tests/waitlist.test.js` (7) + `tests/waitlist.concurrency.test.js` (1). |
-| 16 | Full Regression and Cleanup | Done | README, seed, 97 tests, Swagger (`/api-docs`), Postman collection, JWT + waitlist ownership. |
+| 15 | Waitlist | Done | Cancel → offer; accept creates confirmed appointment in one transaction; expired/superseded queue advance; `tests/waitlist.test.js` (11) + `tests/waitlist.concurrency.test.js` (1). |
+| 16 | Full Regression and Cleanup | Done | README, seed, 97 tests, Swagger (`/api-docs`), JWT verification auth layer, `mint-jwt`, `e2e-curl`. |
+| 17 | Auth Foundation | Done | Added `users` model + indexes, `POST /auth/signup`, `POST /auth/login`, bcrypt password hashing, `tests/auth.credentials.test.js` (4). |
 
 ## Test Summary
 
-Last run: `npm test` — **97 passed** (18 files); `npm run test:seed` — **1 passed**
+Last run: `npm test` — **101 passed** (19 files); `npm run test:seed` — **1 passed**
 
 | File | Tests | Type |
 |---|---|---|
 | `tests/health.test.js` | 1 | HTTP (no DB) |
 | `tests/index-definitions.test.js` | 7 | Schema index definitions |
 | `tests/slot.engine.test.js` | 9 | Pure unit |
-| `tests/validators.test.js` | 8 | slot.utils + HTTP validation |
+| `tests/validators.test.js` | 9 | slot.utils + HTTP validation |
 | `tests/core-routes.test.js` | 8 | CRUD + availability |
 | `tests/slots.api.test.js` | 6 | GET /slots integration |
 | `tests/events.test.js` | 4 | Audit / history |
@@ -103,14 +101,15 @@ Last run: `npm test` — **97 passed** (18 files); `npm run test:seed` — **1 p
 | `tests/appointment-transitions.test.js` | 9 | Confirm, cancel, reschedule |
 | `tests/appointment-transitions.concurrency.test.js` | 3 | Concurrent transitions |
 | `tests/appointment-outcomes.test.js` | 8 | No-show and complete |
-| `tests/auth.test.js` | 5 | JWT + dev header policy |
+| `tests/auth.test.js` | 4 | JWT Bearer (required on all protected routes) |
+| `tests/auth.credentials.test.js` | 4 | Signup/login credential auth |
 | `tests/waitlist.test.js` | 11 | Waitlist flows + ownership |
 | `tests/waitlist.concurrency.test.js` | 1 | Parallel offers |
 | `tests/zz-seed.test.js` | 1 | Seed smoke (`npm run test:seed`) |
 
 **Still optional / not automated:** audit rollback injection test, performance smoke threshold, 100-way parallel booking.
 
-**Auth / waitlist hardening (done):** JWT Bearer tokens (`jsonwebtoken`); dev headers only when `NODE_ENV !== production`; waitlist accept is patient-only; waitlist remove is patient-owned or staff.
+**Auth / waitlist hardening (done):** JWT Bearer tokens (`jsonwebtoken`); waitlist accept is patient-only; waitlist remove is patient-owned or staff.
 
 **Mongo for integration tests:** Uses `MONGODB_URI` from `.env` (Atlas). Optional local: `docker compose up -d` with `mongodb://localhost:27017/clinic_scheduling?replicaSet=rs0`. Vitest runs DB tests with `fileParallelism: false`.
 
@@ -244,7 +243,7 @@ Completed:
 
 Tests run: `npm test` — 88 passed.
 
-### Session 8 — Swagger + Postman
+### Session 8 — Swagger + API docs
 
 Status: `Done`
 
@@ -252,11 +251,9 @@ Completed:
 
 - `openapi/openapi.yaml` — OpenAPI 3 spec for all routes
 - Swagger UI at `/api-docs` (`swagger-ui-express`)
-- `postman/ClinicOS.postman_collection.json` — full API, variables, **08 E2E Flow**
-- Postman auto-signs JWT from `jwtSecret` (matches `.env`)
+- JWT-only auth (dev headers removed)
+- `scripts/mint-jwt.js`, `scripts/e2e-curl.sh`, `npm run e2e:curl`
 - Docs updated: README, Task.md, ApiContracts.md, CursorPlan.md, TestingPlan.md, Progress.md
-
-Next: manual demo via Postman E2E folder.
 
 ## Files Created Or Changed By Checkpoint
 
@@ -306,7 +303,7 @@ src/utils/ids.js
 src/utils/slot.utils.js
 ```
 
-Auth dev headers: `x-clinic-id` (required), `x-actor-id`, `x-actor-role`, `x-actor-name`.
+Auth: `Authorization: Bearer <JWT>`.
 
 Completion notes: Done.
 
@@ -508,14 +505,17 @@ Files:
 README.md
 openapi/openapi.yaml
 src/config/swagger.js
-postman/ClinicOS.postman_collection.json
+src/utils/jwt.js
+src/middleware/auth.js
+scripts/mint-jwt.js
+scripts/e2e-curl.sh
 scripts/seed.js
 tests/zz-seed.test.js
 ```
 
 Tests: `npm test` (97), `npm run test:seed` (1).
 
-Completion notes: Done. Swagger at `/api-docs`. Postman E2E collection. README + all core docs reference OpenAPI and Postman paths.
+Completion notes: Done. Swagger at `/api-docs`. JWT-only auth. `npm run mint-jwt` and `npm run e2e:curl` for manual E2E. README + core docs aligned with implementation.
 
 ## Route Inventory (implemented)
 

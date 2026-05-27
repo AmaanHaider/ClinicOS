@@ -107,4 +107,19 @@ describe.sequential("HTTP validation", { timeout: 60000 }, () => {
       .set(staffHeaders(fixture.clinic._id));
     expect(res.status).toBe(403);
   });
+
+  it("rejects slot query clinicId mismatch with token", async () => {
+    fixture = await createBookingFixture();
+    const res = await request(app)
+      .get("/slots")
+      .query({
+        clinicId: `${fixture.clinic._id}_other`,
+        doctorId: fixture.doctor._id,
+        appointmentType: fixture.consult._id,
+        from: fixture.monday,
+        to: fixture.monday
+      })
+      .set(authHeaders(fixture.clinic._id));
+    expect(res.status).toBe(403);
+  });
 });

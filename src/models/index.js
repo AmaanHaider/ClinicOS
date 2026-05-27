@@ -8,4 +8,5 @@ export { SlotReservation } from "./SlotReservation.js";
 export { AppointmentEvent } from "./AppointmentEvent.js";
 export { WaitlistEntry } from "./WaitlistEntry.js";
 export { SlotOffer } from "./SlotOffer.js";
+export { User } from "./User.js";
 

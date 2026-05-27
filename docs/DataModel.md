@@ -2,7 +2,7 @@
 
 This file is the implementation-focused data model extracted from `docs/Task.md`. If there is a conflict, `docs/Task.md` is the source of truth.
 
-**HTTP API:** OpenAPI at `openapi/openapi.yaml`, Swagger UI at `/api-docs`, manual E2E via `postman/ClinicOS.postman_collection.json` (see `docs/ApiContracts.md`).
+**HTTP API:** OpenAPI at `openapi/openapi.yaml`, Swagger UI at `/api-docs`, manual E2E via `npm run e2e:curl` (see `docs/ApiContracts.md`).
 
 ## Core Rules
 
@@ -17,6 +17,9 @@ This file is the implementation-focused data model extracted from `docs/Task.md`
 - MongoDB must run as a replica set in local and production environments because transactions are required.
 
 ## Collections
+
+> Auth layer note: scheduling collections are listed first.
+> The `users` auth collection is implemented and included in the "Auth Model Extension" section below. `authSessions` remains optional/future.
 
 ### `clinics`
 
@@ -418,6 +421,62 @@ Indexes:
 
 { clinicId: 1, waitlistEntryId: 1, status: 1 }
 ```
+
+## Auth Model Extension
+
+### `users` (implemented)
+
+Purpose:
+- clinic-scoped login identity for `patient` and `clinic_staff`.
+- source of truth for JWT claims (`sub`, `clinicId`, `role`, `name`) after login is added.
+
+Core fields (target):
+- `_id`
+- `clinicId`
+- `email` (lowercased)
+- `passwordHash`
+- `role` (`patient` | `clinic_staff`)
+- `name`
+- `isActive`
+- timestamps
+
+Indexes (target):
+
+```js
+{ clinicId: 1, email: 1 }, { unique: true }
+{ clinicId: 1, role: 1, isActive: 1 }
+{ clinicId: 1, _id: 1 }
+```
+
+### `authSessions` (optional/future)
+
+Purpose:
+- refresh token session tracking, revocation, and logout.
+
+Core fields (target):
+- `_id`
+- `userId`
+- `clinicId`
+- `refreshTokenHash`
+- `status` (`active` | `revoked`)
+- `expiresAt`
+- metadata (`ip`, `userAgent`)
+
+Indexes (target):
+
+```js
+{ refreshTokenHash: 1 }, { unique: true }
+{ userId: 1, status: 1 }
+{ clinicId: 1, userId: 1, status: 1 }
+{ expiresAt: 1 } // optional TTL/expiry cleanup strategy
+```
+
+### Indexing impact of auth layer extension
+
+- Existing scheduling/concurrency indexes remain unchanged.
+- `clinicId` remains the first key in tenant-owned hot-path indexes.
+- `patientId` in appointments/waitlist can move from free-form string to `users._id` without changing index shapes.
+- Core uniqueness locks (`slotReservations`, `slotOffers`) stay exactly as-is.
 
 ## Transaction Rules
 
