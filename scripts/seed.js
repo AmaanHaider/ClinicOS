@@ -1,3 +1,7 @@
+/**
+ * Database seed — demo clinics (India/London), doctors, templates, exceptions,
+ * confirmed appointments, waitlist entries. npm run seed
+ */
 import { pathToFileURL } from "url";
 import { DateTime } from "luxon";
 import { connectDb, disconnectDb } from "../src/config/db.js";

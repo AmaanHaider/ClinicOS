@@ -1,3 +1,6 @@
+/**
+ * Shared Zod primitives — id, dateOnly, isoDateTime, time windows, envelope wrapper.
+ */
 import { z } from "zod";
 
 export const id = z.string().min(1);

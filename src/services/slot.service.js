@@ -1,3 +1,7 @@
+/**
+ * Slot service — GET /slots orchestration, overlap checks before booking, assertGeneratedSlot.
+ * Loads template/exceptions/reservations then delegates to slot.engine.js.
+ */
 import { DateTime } from "luxon";
 import { AppointmentType, AvailabilityException, AvailabilityTemplate, Clinic, SlotReservation } from "../models/index.js";
 import { BadRequestError, ConflictError, ErrorCodes, NotFoundError } from "../utils/errors.js";
@@ -7,12 +11,14 @@ import { computeAvailableSlots } from "./slot.engine.js";
 import { requireDoctor } from "./doctor.service.js";
 import { expireStaleHoldsInRange } from "./holdLifecycle.service.js";
 
+/** Mongo filter: confirmed OR held with unexpired holdExpiresAt. */
 function activeReservationFilter(now = new Date()) {
   return {
     $or: [{ status: "confirmed" }, { status: "held", holdExpiresAt: { $gt: now } }]
   };
 }
 
+/** Pre-write check — interval overlap with any active reservation (booking/reschedule). */
 export async function assertNoActiveReservationOverlap(clinicId, { doctorId, slotStart, slotEnd, excludeReservationId }) {
   const start = slotStart instanceof Date ? slotStart : new Date(slotStart);
   const end = slotEnd instanceof Date ? slotEnd : new Date(slotEnd);
@@ -31,6 +37,7 @@ export async function assertNoActiveReservationOverlap(clinicId, { doctorId, slo
   }
 }
 
+/** GET /slots — load data, sweep stale holds, run slot.engine.computeAvailableSlots. */
 export async function getSlots(clinicId, { doctorId, appointmentType, from, to }) {
   const fromDt = parseDate(from);
   const toDt = parseDate(to);
@@ -78,6 +85,7 @@ export async function getSlots(clinicId, { doctorId, appointmentType, from, to }
   return { doctorId, appointmentType, durationMinutes: type.durationMinutes, from, to, slots };
 }
 
+/** Ensures slotStart appears in computed grid for that day (on-grid + still available). */
 export async function assertGeneratedSlot(clinicId, { doctorId, appointmentTypeId, slotStart }) {
   const slotDt = DateTime.fromJSDate(slotStart, { zone: "utc" });
   const date = slotDt.toISODate();

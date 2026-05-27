@@ -1,3 +1,4 @@
+/** Zod schema for POST /clinics. */
 import { z } from "zod";
 import { envelope } from "./common.js";
 

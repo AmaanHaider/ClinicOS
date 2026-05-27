@@ -1,3 +1,4 @@
+/** Zod schemas for appointments: create, confirm, reschedule, cancel, list, get by id. */
 import { z } from "zod";
 import { envelope, id, isoDateTime } from "./common.js";
 

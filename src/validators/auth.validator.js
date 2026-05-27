@@ -1,3 +1,4 @@
+/** Zod schemas for POST /auth/signup and /auth/login. */
 import { z } from "zod";
 import { envelope, id } from "./common.js";
 

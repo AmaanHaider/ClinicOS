@@ -1,3 +1,7 @@
+/**
+ * Waitlist service — join when day full, offer on cancel (urgency + FIFO), accept → confirmed booking.
+ * SlotOffer unique index ensures one active offer per slot.
+ */
 import { DateTime } from "luxon";
 import { SlotOffer, WaitlistEntry } from "../models/index.js";
 import { BadRequestError, ConflictError, ErrorCodes, ForbiddenError, GoneError, NotFoundError } from "../utils/errors.js";
@@ -28,6 +32,7 @@ function slotContext(entry, offer) {
   };
 }
 
+/** POST /waitlist — only if getSlots returns zero slots for targetDate. */
 export async function joinWaitlist(clinicId, data, actor) {
   const patientId = data.patientId || actor?.id;
   if (!patientId) throw new BadRequestError("patientId is required");
@@ -60,6 +65,7 @@ export async function joinWaitlist(clinicId, data, actor) {
   }
 }
 
+/** Internal — create SlotOffer for next waiting entry (urgency desc, joinedAt asc). */
 export async function offerNextWaitlistPatient({ clinicId, doctorId, appointmentTypeId, targetDate, slotStart, slotEnd }) {
   const entry = await WaitlistEntry.findOne({
     clinicId,
@@ -125,6 +131,7 @@ async function supersedeOfferAndAdvanceQueue({ entry, offer }) {
   await offerNextWaitlistPatient(ctx);
 }
 
+/** Called from cancelAppointment when a confirmed/pending slot is released. */
 export async function triggerWaitlistOfferAfterCancellation(appointment, clinicTimezone) {
   const targetDate = DateTime.fromJSDate(appointment.currentSlotStart, { zone: "utc" })
     .setZone(clinicTimezone)
@@ -140,6 +147,7 @@ export async function triggerWaitlistOfferAfterCancellation(appointment, clinicT
   });
 }
 
+/** POST /waitlist/:id/accept — patient must own entry; books via createConfirmedAppointment. */
 export async function acceptOffer(clinicId, waitlistEntryId, actor) {
   const entry = await WaitlistEntry.findOne({ clinicId, _id: waitlistEntryId });
   if (!entry) throw new NotFoundError("Waitlist entry not found");

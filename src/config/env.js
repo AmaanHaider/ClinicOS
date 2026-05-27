@@ -1,3 +1,7 @@
+/**
+ * Environment configuration — loads .env and validates with Zod.
+ * Exports: PORT, MONGODB_URI, JWT_*, MAX_SLOT_QUERY_DAYS, PENDING_HOLD_MINUTES, WAITLIST_OFFER_MINUTES.
+ */
 import dotenv from "dotenv";
 import { z } from "zod";
 

@@ -1,3 +1,6 @@
+/**
+ * Doctor service — create/list doctors; requireDoctor guard used across booking and slots.
+ */
 import { AppointmentType, Doctor } from "../models/index.js";
 import { BadRequestError, NotFoundError } from "../utils/errors.js";
 

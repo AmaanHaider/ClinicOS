@@ -1,3 +1,6 @@
+/**
+ * Clinic service — create clinic with IANA timezone validation.
+ */
 import { Clinic } from "../models/Clinic.js";
 import { assertIanaTimezone } from "../utils/timezone.js";
 

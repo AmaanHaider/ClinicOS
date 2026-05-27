@@ -1,3 +1,6 @@
+/**
+ * Global error handling — AppError → JSON status/code; Mongo E11000 → 409 DUPLICATE_KEY.
+ */
 import { AppError, ErrorCodes } from "../utils/errors.js";
 
 export function notFound(req, res) {

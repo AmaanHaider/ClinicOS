@@ -1,3 +1,7 @@
+/**
+ * HTTP route table — maps paths to controllers and Zod validators.
+ * Public: /health, /clinics, /auth/*. Protected routes use auth + tenant middleware.
+ */
 import { Router } from "express";
 import { auth } from "../middleware/auth.js";
 import { tenant } from "../middleware/tenant.js";

@@ -1,3 +1,6 @@
+/**
+ * Sync all Mongoose indexes to MongoDB — run after schema changes: npm run setup:indexes
+ */
 import { connectDb, disconnectDb } from "../src/config/db.js";
 import * as models from "../src/models/index.js";
 

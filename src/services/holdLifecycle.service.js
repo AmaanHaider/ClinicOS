@@ -1,9 +1,14 @@
+/**
+ * Hold lifecycle — lazy expiry of pending holds (no cron): on confirm failure, booking retry,
+ * and bounded sweep during GET /slots. Writes expired event in transaction.
+ */
 import { Appointment, SlotReservation } from "../models/index.js";
 import { withTransaction } from "../utils/transactions.js";
 import { writeEvent } from "./event.service.js";
 
 const systemActor = { id: "system", role: "system", name: "System" };
 
+/** Mark held reservation + pending appointment as expired; write expired event. */
 export async function expirePendingHold({ clinicId, appointmentId, reservationId, actor = systemActor, session }) {
   const now = new Date();
   const run = async (txnSession) => {
@@ -58,6 +63,7 @@ export async function expireHoldBySlot({ clinicId, doctorId, slotStart, actor = 
   });
 }
 
+/** Lazy sweep during GET /slots — at most `limit` expired holds per request. */
 export async function expireStaleHoldsInRange({ clinicId, doctorId, rangeStart, rangeEnd, limit = 50, actor = systemActor }) {
   const now = new Date();
   const stale = await SlotReservation.find({

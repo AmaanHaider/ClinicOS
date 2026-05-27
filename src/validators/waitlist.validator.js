@@ -1,3 +1,4 @@
+/** Zod schemas for POST /waitlist and waitlist accept/remove by id. */
 import { z } from "zod";
 import { dateOnly, envelope, id } from "./common.js";
 

@@ -1,3 +1,4 @@
+/** Zod schema for GET /slots query (clinicId, doctorId, appointmentType, from, to). */
 import { z } from "zod";
 import { dateOnly, envelope, id } from "./common.js";
 

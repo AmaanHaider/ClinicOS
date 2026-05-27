@@ -1,3 +1,7 @@
+/**
+ * Booking service — core scheduling writes: book (pending hold), confirm, cancel, reschedule,
+ * staff outcomes. Uses transactions + event log + partial unique index on slotReservations.
+ */
 import { DateTime } from "luxon";
 import { Appointment, AppointmentType, Clinic, SlotReservation } from "../models/index.js";
 import { BadRequestError, ConflictError, ErrorCodes, GoneError, NotFoundError } from "../utils/errors.js";
@@ -10,6 +14,7 @@ import { writeEvent } from "./event.service.js";
 import { expireHoldBySlot, expirePendingHold } from "./holdLifecycle.service.js";
 import { env } from "../config/env.js";
 
+/** POST /appointments — pending hold + reservation; idempotent via idempotencyKey; E11000 → SLOT_TAKEN. */
 export async function createAppointment(clinicId, data, actor, retry = true) {
   if (data.idempotencyKey) {
     const existing = await Appointment.findOne({ clinicId, idempotencyKey: data.idempotencyKey });
@@ -72,6 +77,7 @@ export async function createAppointment(clinicId, data, actor, retry = true) {
   }
 }
 
+/** Creates confirmed appointment in one step — used by waitlist accept (optional parent session). */
 export async function createConfirmedAppointment(clinicId, data, actor, session) {
   const slotStart = parseUtcDateTime(data.slotStart).toJSDate();
   if (slotStart <= new Date()) throw new BadRequestError("slotStart must be in the future");
@@ -135,6 +141,7 @@ export async function createConfirmedAppointment(clinicId, data, actor, session)
   }
 }
 
+/** PATCH confirm — pending → confirmed; CAS on version; 410 HOLD_EXPIRED if hold past TTL. */
 export async function confirmAppointment(clinicId, id, actor) {
   const now = new Date();
   const existing = await Appointment.findOne({ _id: id, clinicId });
@@ -180,6 +187,7 @@ export async function confirmAppointment(clinicId, id, actor) {
   }
 }
 
+/** DELETE cancel — releases reservation; triggers waitlist offer for freed slot. */
 export async function cancelAppointment(clinicId, id, data, actor) {
   const appointment = await withTransaction(async (session) => {
     const existing = await Appointment.findOne({ _id: id, clinicId }).session(session);
@@ -221,6 +229,7 @@ export async function cancelAppointment(clinicId, id, data, actor) {
   return appointment;
 }
 
+/** PATCH reschedule — same appointment id; version claim; new reservation; old → released. */
 export async function rescheduleAppointment(clinicId, id, data, actor) {
   const preview = await Appointment.findOne({ _id: id, clinicId });
   if (!preview) throw new NotFoundError("Appointment not found");
@@ -309,6 +318,7 @@ export async function rescheduleAppointment(clinicId, id, data, actor) {
   }
 }
 
+/** PATCH no_show | complete — staff only, appointment must be in the past. */
 export async function markOutcome(clinicId, id, outcome, actor) {
   if (actor.role !== "clinic_staff") throw new BadRequestError("Only clinic staff can update visit outcome");
   const now = new Date();

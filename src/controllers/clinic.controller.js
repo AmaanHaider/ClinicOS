@@ -1,3 +1,6 @@
+/**
+ * Clinic HTTP controller — POST /clinics (public signup for new tenant).
+ */
 import * as clinicService from "../services/clinic.service.js";
 
 export async function createClinic(req, res, next) {

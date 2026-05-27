@@ -1,3 +1,6 @@
+/**
+ * Doctor model — belongs to clinicId; supportedAppointmentTypes references appointment types.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

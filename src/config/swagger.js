@@ -1,3 +1,6 @@
+/**
+ * OpenAPI / Swagger UI — serves openapi/openapi.yaml at /api-docs.
+ */
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";

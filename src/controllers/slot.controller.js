@@ -1,3 +1,6 @@
+/**
+ * Slots HTTP controller — GET /slots; ensures query clinicId matches JWT tenant.
+ */
 import { ForbiddenError } from "../utils/errors.js";
 import { getSlots } from "../services/slot.service.js";
 

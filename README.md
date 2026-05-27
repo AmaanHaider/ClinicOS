@@ -4,6 +4,8 @@ NoSQL-first scheduling core for small clinics. **Slots are computed at query tim
 
 Built with Node.js, Express, MongoDB (replica set for transactions), and Luxon for clinic-local time boundaries.
 
+**Submission:** Line-by-line requirement mapping (API → files → logic → tests) is in [`docs/SubmissionGuide.md`](docs/SubmissionGuide.md).
+
 ---
 
 ## Table of contents
@@ -675,7 +677,7 @@ Run `npm run setup:indexes` after schema changes.
 | POST | `/waitlist` | Join waitlist |
 | POST | `/waitlist/:id/accept` | Accept offer |
 
-Full contract: `openapi/openapi.yaml` · Postman: `postman/ClinicOS.postman_collection.json`
+Full contract: `openapi/openapi.yaml` · Postman: `postman/ClinicOS_postman_collection.json`
 
 ---
 

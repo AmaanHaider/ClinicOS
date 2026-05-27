@@ -1,3 +1,7 @@
+/**
+ * Express application factory — middleware stack, routes, Swagger, error handlers.
+ * Used by: server.js (production), tests (createApp + supertest).
+ */
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";

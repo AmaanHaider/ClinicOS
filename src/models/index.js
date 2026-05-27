@@ -1,3 +1,4 @@
+/** Re-exports all Mongoose models for services, scripts, and tests. */
 export { Clinic } from "./Clinic.js";
 export { Doctor } from "./Doctor.js";
 export { AppointmentType } from "./AppointmentType.js";

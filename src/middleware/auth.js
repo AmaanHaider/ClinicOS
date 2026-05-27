@@ -1,3 +1,7 @@
+/**
+ * JWT authentication — extracts Bearer token, verifies via jwt.js, sets req.actor.
+ * req.actor: { id, clinicId, role, name }. Used on all routes after /auth.
+ */
 import { UnauthorizedError } from "../utils/errors.js";
 import { verifyToken } from "../utils/jwt.js";
 

@@ -1,6 +1,11 @@
+/**
+ * Pure slot engine — computes available start times from template + exceptions minus reservations.
+ * No database calls; used by slot.service.getSlots. Optimised sorted-reservation overlap scan.
+ */
 import { DateTime } from "luxon";
 import { daysInclusive, localWindowToUtc, weekdayForDate } from "../utils/timezone.js";
 
+/** Merge weekly template with exception: block | override | additional. */
 function effectiveWindowsForDate(template, exceptionsByDate, date, timezone) {
   const exception = exceptionsByDate.get(date);
   const weekday = weekdayForDate(date, timezone);
@@ -30,6 +35,7 @@ function hasOverlap(sortedReservations, startIndex, startMs, endMs) {
   return false;
 }
 
+/** Main slot generator — steps durationMinutes through windows; skips overlaps and past times. */
 export function computeAvailableSlots({ template, exceptions = [], reservations = [], timezone, durationMinutes, from, to, now = new Date() }) {
   const exceptionsByDate = new Map(exceptions.map((ex) => [ex.date, ex]));
   const sortedReservations = normalizeReservations(reservations);

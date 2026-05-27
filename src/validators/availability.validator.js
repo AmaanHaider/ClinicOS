@@ -1,3 +1,4 @@
+/** Zod schemas for availability template, exceptions, and validate dry-run. */
 import { z } from "zod";
 import { dateOnly, envelope, id, windowSchema } from "./common.js";
 

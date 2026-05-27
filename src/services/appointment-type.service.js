@@ -1,3 +1,6 @@
+/**
+ * Appointment type service — durationMinutes drives slot grid; requireAppointmentType guard.
+ */
 import { AppointmentType } from "../models/AppointmentType.js";
 import { NotFoundError } from "../utils/errors.js";
 

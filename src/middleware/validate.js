@@ -1,3 +1,6 @@
+/**
+ * Zod validation middleware — parses body/query/params into req.validated; 400 on failure.
+ */
 import { BadRequestError } from "../utils/errors.js";
 
 export function validate(schema) {

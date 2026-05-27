@@ -1,3 +1,7 @@
+/**
+ * MongoDB transaction helper — withTransaction(fn) runs fn inside session.withTransaction.
+ * Required for booking + event writes and waitlist accept.
+ */
 import mongoose from "mongoose";
 
 export async function withTransaction(fn) {

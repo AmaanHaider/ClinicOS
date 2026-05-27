@@ -1,3 +1,6 @@
+/**
+ * Doctor HTTP controller — create and list doctors for a clinic.
+ */
 import * as doctorService from "../services/doctor.service.js";
 
 export async function createDoctor(req, res, next) {

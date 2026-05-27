@@ -1,3 +1,6 @@
+/**
+ * Availability exception — per-date block | override | additional windows.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

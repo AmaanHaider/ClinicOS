@@ -1,3 +1,6 @@
+/**
+ * Multi-tenancy guard — sets req.clinicId from JWT; rejects URL clinicId mismatch (403).
+ */
 import { ForbiddenError, UnauthorizedError } from "../utils/errors.js";
 
 function clinicIdFromPath(req) {

@@ -1,3 +1,6 @@
+/**
+ * Timezone utilities (Luxon) — parse dates, local HH:MM windows → UTC, weekday, day ranges.
+ */
 import { DateTime, IANAZone } from "luxon";
 import { BadRequestError } from "./errors.js";
 

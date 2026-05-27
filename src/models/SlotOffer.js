@@ -1,3 +1,6 @@
+/**
+ * Slot offer — time-limited waitlist offer for a freed slot; partial unique index per offered slot.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

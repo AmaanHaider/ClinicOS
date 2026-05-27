@@ -1,3 +1,6 @@
+/**
+ * Appointment type model — durationMinutes defines slot step size for GET /slots and bookings.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

@@ -1,3 +1,7 @@
+/**
+ * MongoDB connection — connectDb / disconnectDb for server, tests, and scripts.
+ * Requires replica set URI for multi-document transactions.
+ */
 import mongoose from "mongoose";
 import { env } from "./env.js";
 

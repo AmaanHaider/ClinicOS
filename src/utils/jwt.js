@@ -1,3 +1,6 @@
+/**
+ * JWT sign/verify — payload: sub, clinicId, role, name → req.actor in auth middleware.
+ */
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { UnauthorizedError } from "./errors.js";

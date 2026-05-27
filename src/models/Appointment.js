@@ -1,3 +1,6 @@
+/**
+ * Appointment model — mutable booking read model; version field for optimistic concurrency (CAS).
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

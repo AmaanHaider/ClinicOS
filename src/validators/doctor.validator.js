@@ -1,3 +1,4 @@
+/** Zod schemas for doctor create and list query params. */
 import { z } from "zod";
 import { envelope, id } from "./common.js";
 

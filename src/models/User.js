@@ -1,3 +1,6 @@
+/**
+ * User model — clinic-scoped login (patient | clinic_staff); unique email per clinic.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

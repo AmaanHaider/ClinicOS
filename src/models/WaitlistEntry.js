@@ -1,3 +1,6 @@
+/**
+ * Waitlist entry — patient queue for a fully-booked doctor/day; status waiting | offered | accepted.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

@@ -1,3 +1,6 @@
+/**
+ * Availability HTTP controller — weekly template, date exceptions, dry-run validate.
+ */
 import * as service from "../services/availability.service.js";
 
 export async function putAvailability(req, res, next) {

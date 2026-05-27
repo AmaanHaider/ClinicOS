@@ -1,3 +1,7 @@
+/**
+ * Appointment HTTP controller — book, confirm, reschedule, cancel, outcomes, list, history.
+ * Delegates mutations to booking.service; list/get use Appointment model directly.
+ */
 import { Appointment } from "../models/Appointment.js";
 import { BadRequestError, NotFoundError } from "../utils/errors.js";
 import { parseDate } from "../utils/timezone.js";
@@ -47,6 +51,7 @@ export async function appointmentHistory(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/** GET /clinics/:clinicId/appointments — filter by date, range, patientId; cursor pagination via after. */
 export async function listAppointments(req, res, next) {
   try {
     const q = req.validated.query;

@@ -1,3 +1,6 @@
+/**
+ * Availability template — weekly recurring windows (MON–SUN). One active template per doctor.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

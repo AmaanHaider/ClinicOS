@@ -1,3 +1,6 @@
+/**
+ * HTTP error types and stable API codes (SLOT_TAKEN, HOLD_EXPIRED, VERSION_CONFLICT, etc.).
+ */
 export const ErrorCodes = {
   BAD_REQUEST: "BAD_REQUEST",
   UNAUTHORIZED: "UNAUTHORIZED",

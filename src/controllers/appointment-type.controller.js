@@ -1,3 +1,6 @@
+/**
+ * Appointment type HTTP controller — CRUD for consult/follow-up/procedure durations.
+ */
 import * as service from "../services/appointment-type.service.js";
 
 export async function createAppointmentType(req, res, next) {

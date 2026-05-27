@@ -1,3 +1,7 @@
+/**
+ * Availability service — weekly templates, date exceptions (block/override/additional),
+ * and dry-run validateAvailabilityChange (conflicts without persisting).
+ */
 import { DateTime } from "luxon";
 import { Appointment, AppointmentType, AvailabilityException, AvailabilityTemplate, Clinic } from "../models/index.js";
 import { BadRequestError, NotFoundError } from "../utils/errors.js";
@@ -73,6 +77,7 @@ function appointmentFitsWindows(appt, windows, timezone) {
   });
 }
 
+/** POST .../availability/validate — dry-run; returns conflicting confirmed appointments. */
 export async function validateAvailabilityChange(clinicId, doctorId, proposedTemplate, dateRange) {
   await requireDoctor(clinicId, doctorId);
   const from = parseDate(dateRange.from);

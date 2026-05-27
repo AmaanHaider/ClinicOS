@@ -1,3 +1,6 @@
+/**
+ * Waitlist HTTP controller — join queue, accept offer, list, remove entry.
+ */
 import * as service from "../services/waitlist.service.js";
 
 export async function joinWaitlist(req, res, next) {

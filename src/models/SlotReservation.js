@@ -1,3 +1,7 @@
+/**
+ * Slot reservation — lock document (held | confirmed | released | expired).
+ * Partial unique index on (clinicId, doctorId, slotStart) prevents double-booking.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 
@@ -16,6 +20,7 @@ const schema = new mongoose.Schema({
   releasedAt: Date
 }, { timestamps: true });
 
+// Anti double-book: only one active held|confirmed reservation per exact slotStart
 schema.index(
   { clinicId: 1, doctorId: 1, slotStart: 1 },
   { unique: true, partialFilterExpression: { status: { $in: ["held", "confirmed"] } } }

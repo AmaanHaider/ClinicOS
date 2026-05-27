@@ -1,3 +1,6 @@
+/**
+ * Auth HTTP controller — POST /auth/signup and /auth/login; returns JWT + user.
+ */
 import * as service from "../services/auth.service.js";
 
 export async function signup(req, res, next) {

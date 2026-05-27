@@ -1,3 +1,6 @@
+/**
+ * Availability window validation — HH:MM format, non-overlapping windows, min duration check.
+ */
 import { BadRequestError } from "./errors.js";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;

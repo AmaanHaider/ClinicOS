@@ -1,3 +1,6 @@
+/**
+ * MongoDB replica set init — run inside mongo shell / docker for local transactions.
+ */
 try {
   rs.status();
 } catch {

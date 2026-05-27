@@ -1,6 +1,10 @@
+/**
+ * Event log service — append-only appointmentEvents; history API; replay/reconcile helpers.
+ */
 import { Appointment } from "../models/Appointment.js";
 import { AppointmentEvent } from "../models/AppointmentEvent.js";
 
+/** Append one audit row — pass session when inside withTransaction. */
 export async function writeEvent({ appointment, appointmentId, clinicId, eventType, actor, previousState = null, newState = null, metadata = {}, session }) {
   const doc = appointment || {};
   const event = await AppointmentEvent.create([{
@@ -20,6 +24,7 @@ export async function history(clinicId, appointmentId) {
   return AppointmentEvent.find({ clinicId, appointmentId }).sort({ timestamp: 1 }).lean();
 }
 
+/** Replay events to derive status (and slot after reschedule) — used in tests/reconcile. */
 export function deriveAppointmentFromEvents(events) {
   const sorted = [...events].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   const derived = { status: null, currentSlotStart: null };

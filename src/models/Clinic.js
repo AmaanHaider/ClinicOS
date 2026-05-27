@@ -1,3 +1,6 @@
+/**
+ * Clinic model — tenant root; timezone (IANA) used for all local→UTC slot boundaries.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

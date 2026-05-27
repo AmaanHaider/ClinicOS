@@ -1,3 +1,6 @@
+/**
+ * Appointment event model — append-only audit log; never updated or deleted in application code.
+ */
 import mongoose from "mongoose";
 import { makeId } from "../utils/ids.js";
 

@@ -1,3 +1,6 @@
+/**
+ * Auth service — signup/login, bcrypt passwords, issue JWT scoped to clinicId + role.
+ */
 import bcrypt from "bcryptjs";
 import { Clinic, User } from "../models/index.js";
 import { ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";

@@ -1,3 +1,4 @@
+/** Zod schemas for appointment type create and patch. */
 import { z } from "zod";
 import { envelope, id } from "./common.js";
 
