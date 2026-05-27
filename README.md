@@ -348,7 +348,7 @@ OR (status = held AND holdExpiresAt > now)
 reservation.slotStart < candidateEnd AND reservation.slotEnd > candidateStart
 ```
 
-**Performance:** Conflict check is `reservations.some()` per candidate slot — O(slots × reservations). Correct for moderate load; busy 30-day doctors may benefit from sorted-interval optimisation.
+**Performance:** Reservations are sorted once, and overlap checks use an advancing pointer plus bounded forward scan in `slot.engine.js` (`hasOverlap`). This avoids a full `reservations.some()` from index 0 for every candidate slot and improves dense schedules while keeping correctness identical.
 
 ---
 
@@ -576,24 +576,22 @@ Tests: `tests/multi-tenancy.test.js`, `tests/auth.test.js`
 
 ### 2.2 Concurrency strategy (350–450 words)
 
-Double-booking is prevented by **three cooperating layers**:
+Double-booking is prevented by **three cooperating layers** that each catch a different failure mode.
+Together they provide user-facing determinism (`201` winner, `409` loser) while preserving an audit-safe write model under race conditions.
 
-1. **Application overlap check** — `assertNoActiveReservationOverlap` rejects any candidate interval that intersects an active reservation before write.
+1. **Application overlap check** — before any write, `assertNoActiveReservationOverlap` queries `slotReservations` with interval logic (`slotStart < candidateEnd && slotEnd > candidateStart`) against active rows (`confirmed` or unexpired `held`). This blocks obvious conflicts early and returns a domain error instead of relying only on database exceptions.
 
-2. **MongoDB multi-document transaction** — `withTransaction` ensures appointment, reservation, and event are written atomically or not at all. Requires a replica set.
+2. **MongoDB transaction boundary** — write paths use `withTransaction(...)` so reservation changes, appointment projection changes, and `appointmentEvents` inserts commit together or roll back together. This is critical for audit consistency: we never want “appointment updated without event” or the inverse. It requires replica-set mode even in local dev.
 
-3. **Partial unique index** — `{ clinicId, doctorId, slotStart }` unique where `status ∈ { held, confirmed }`. Two concurrent inserts for the same slot produce `E11000` on the loser; the API returns **409 Conflict** with message *"This slot has just been taken."*
+3. **Database-enforced atomic claim** — the hard anti-double-book guard is the partial unique index on `slotReservations`:
+`{ clinicId: 1, doctorId: 1, slotStart: 1 }` with filter `status ∈ { held, confirmed }`.
+The exact winning atomic operation is `SlotReservation.create(...)` inside the booking transaction. If two requests race for the same `slotStart`, one insert commits; the loser gets MongoDB `E11000` duplicate key.
 
-**Loser behaviour:** HTTP 409 with `code: SLOT_TAKEN` (or `VERSION_CONFLICT` on reschedule races). Clients should refresh `/slots` and pick another time.
+**What the loser sees:** `E11000` is translated to HTTP **409** with stable code `SLOT_TAKEN`. For optimistic-lock misses (`version` claim failed on confirm/cancel/reschedule), we return **409** with `VERSION_CONFLICT`. Client action is deterministic: refresh `/slots` or re-fetch appointment and retry.
 
-**Pending hold expiry without cron:** `holdLifecycle.service.js` expires stale holds lazily when:
-- a new booking collides with an expired hold (retry path),
-- confirm is attempted after TTL (`HOLD_EXPIRED` / 410 + cleanup),
-- `GET /slots` runs a bounded sweep (50 rows per request).
+**Pending → expired without tight polling:** there is no every-second cron. Expiry is lazy/event-driven via `holdLifecycle.service.js`: (a) confirm on stale hold triggers `expirePendingHold` and returns **410** `HOLD_EXPIRED`; (b) booking collision on an expired hold runs `expireHoldBySlot` then retries once; (c) `GET /slots` runs a bounded stale-hold sweep (50 rows max). This keeps cleanup proportional to user traffic.
 
-**Reschedule races:** Optimistic locking via `appointment.version` — claim with `findOneAndUpdate` inside a transaction; concurrent updates get 409.
-
-**At 10,000 vs 100 concurrent requests:** The unique index serialises writes per exact `slotStart`. Correctness holds; hot slots see higher latency and 409 retry rates. MongoDB’s atomic document updates help, but there is no SQL-style row lock — we accept retry storms on popular slots as the tradeoff for document-model flexibility.
+**At 10,000 vs 100 concurrent requests:** correctness remains intact because the unique index serialises conflicting writes for an exact slot. What changes is contention profile: hot slots produce more lock/index contention, higher p95 latency, and more 409 retries. MongoDB helps with single-document atomicity and unique constraints, but it does not provide SQL-style row locks or exclusion constraints for arbitrary intervals, so we accept retry-heavy behavior under hotspot traffic as a deliberate NoSQL tradeoff.
 
 **Proof:** `tests/booking.concurrency.test.js`, `tests/appointment-transitions.concurrency.test.js`
 
@@ -608,11 +606,15 @@ Double-booking is prevented by **three cooperating layers**:
 
 **1. Interval scheduling without SQL range types**
 
-Relational databases express “no overlapping appointments” with range types and exclusion constraints. MongoDB has no equivalent. We derive slots in Node (`slot.engine.js`) and enforce writes with overlap queries plus a partial unique index on `slotStart`. **Mitigation:** three-layer concurrency. **Accepted:** application-side slot math and retry under contention.
+In PostgreSQL, this problem can be modeled with range types and exclusion constraints (for example, “no overlapping intervals for the same doctor”), and enforced directly in the database. MongoDB has no native equivalent for interval exclusion across arbitrary start/end combinations. That means slot safety cannot be expressed as one declarative constraint. We compensate by combining: (a) application-side interval overlap checks, (b) a partial unique index for exact `slotStart` claims, and (c) transactional writes for reservation + appointment + event consistency. This works well for correctness, but it shifts complexity into service code (`slot.engine.js`, `slot.service.js`, `booking.service.js`) and increases retry/error handling under contention. **Accepted tradeoff:** more application logic and conflict retries in exchange for flexible document modeling and simple tenant-scoped scaling.
 
 **2. Mutable state + audit trail**
 
-SQL can use triggers or temporal tables. Here, `appointments` mutate while `appointmentEvents` append in the same transaction. **Mitigation:** `withTransaction` + no update/delete paths on events. **Accepted:** no database-enforced FK between event stream and current row — correctness depends on disciplined service code.
+Relational systems can centralize audit guarantees with triggers, temporal tables, and foreign-key enforcement between projection and history tables. In this NoSQL implementation, `appointments` are mutable read models while `appointmentEvents` are append-only documents written by service code. MongoDB will not enforce “every appointment mutation must emit exactly one event” by itself; we enforce that discipline in transaction-aware service methods. The mitigation is explicit: all transition endpoints call `writeEvent(...)` inside the same `withTransaction(...)` block, and event documents have no update/delete code paths. We also added replay/reconcile helpers (`deriveAppointmentFromEvents`, `reconcileAppointment`) to spot projection drift. **Accepted tradeoff:** audit correctness depends on code-path discipline and test coverage rather than a fully declarative database contract.
+
+### 2.5 Waitlist race condition (stretch note)
+
+Waitlist introduces a second concurrency hotspot beyond booking: multiple cancellation or queue-advance paths can try to issue an offer for the same slot at nearly the same time. We handle this with a partial unique index on `slotOffers` for active offers (`status: offered`) keyed by `{ clinicId, doctorId, appointmentTypeId, slotStart }`. If a concurrent offer attempt loses, MongoDB returns `E11000` and we drop that offer path safely. A related race exists on accept: an offered patient may click accept while the slot is taken through another path. `acceptOffer` books through `createConfirmedAppointment`, so reservation uniqueness still arbitrates the winner. Losers receive `409 SLOT_TAKEN`, and the queue advances via supersede/expire handlers.
 
 ---
 
@@ -733,6 +735,12 @@ See `.env.example` for a template.
 | `src/middleware/auth.js` | JWT verification |
 | `scripts/seed.js` | Demo data |
 | `scripts/setup-indexes.js` | Index sync |
+
+---
+
+## AI tools disclosure
+
+AI tooling (Cursor + LLM assistance) was used for implementation acceleration, test scaffolding, and documentation drafting. Specifically, AI helped generate route/service boilerplate, initial test structures, and wording for architecture and memo sections. All critical domain logic (slot derivation rules, concurrency guarantees, transaction boundaries, and tenant enforcement) was manually reviewed and validated against integration tests before submission. Final acceptance criteria were verified by running the test suite, checking API behavior through Swagger/Postman, and manually confirming the concurrent booking loser path.
 
 ---
 
